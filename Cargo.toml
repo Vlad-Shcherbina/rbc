@@ -1,0 +1,14 @@
+[package]
+name = "rbc"
+version = "0.1.0"
+authors = ["Vlad Shcherbina <vlad.shcherbina@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+base64 = "*"
+minreq = { version = "*", features = ["https"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+log = "*"
+env_logger = "*"
+ctrlc = "*"
