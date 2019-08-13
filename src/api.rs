@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use log::info;
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
@@ -168,7 +169,7 @@ struct SenseRequest {
     square: i32,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[derive(Deserialize)]
 #[serde(from = "TypeValue")]
 struct Piece(String);
@@ -246,4 +247,95 @@ pub fn opponent_move_results(game_id: i32) -> MyResult<Option<i32>> {
     let addr = format!("/api/games/{}/opponent_move_results", game_id);
     Ok(make_get_request::<OpponentMoveResultsResponse>(&addr)?
        .opponent_move_results)
+}
+
+#[derive(Debug)]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RawGameHistory {
+    #[serde(rename = "type")]
+    tp: String,  // "GameHistory"
+    white_name: String,
+    black_name: String,
+    winner_color: bool,
+    win_reason: WinReason,
+    senses: HashMap<String, Vec<Option<i32>>>,
+    sense_results: HashMap<String, Vec<Vec<(i32, Option<Piece>)>>>,
+    requested_moves: HashMap<String, Vec<Option<Move>>>,
+    taken_moves: HashMap<String, Vec<Option<Move>>>,
+    capture_squares: HashMap<String, Vec<Option<i32>>>,
+    fens_before_move: HashMap<String, Vec<String>>,
+    fens_after_move: HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug)]
+pub struct MoveHistory {
+    sense: Option<i32>,
+    sense_result: Vec<(i32, Option<Piece>)>,
+    requested_move: Option<String>,
+    taken_move: Option<String>,
+    capture_square: Option<i32>,
+    fen_before: String,
+    fen_after: String,
+}
+
+#[derive(Debug)]
+pub struct GameHistory {
+    white_name: String,
+    black_name: String,
+    winner_color: bool,
+    win_reason: String,
+    moves: Vec<MoveHistory>,
+}
+
+impl From<RawGameHistory> for GameHistory {
+    fn from(h: RawGameHistory) -> GameHistory {
+        let white_moves = h.senses["true"].len();
+        assert_eq!(white_moves, h.sense_results["true"].len());
+        assert_eq!(white_moves, h.requested_moves["true"].len());
+        assert_eq!(white_moves, h.taken_moves["true"].len());
+        assert_eq!(white_moves, h.capture_squares["true"].len());
+        assert_eq!(white_moves, h.fens_before_move["true"].len());
+        assert_eq!(white_moves, h.fens_after_move["true"].len());
+        let black_moves = h.senses["false"].len();
+        assert_eq!(black_moves, h.sense_results["false"].len());
+        assert_eq!(black_moves, h.requested_moves["false"].len());
+        assert_eq!(black_moves, h.taken_moves["false"].len());
+        assert_eq!(black_moves, h.capture_squares["false"].len());
+        assert_eq!(black_moves, h.fens_before_move["false"].len());
+        assert_eq!(black_moves, h.fens_after_move["false"].len());
+        let mut moves = Vec::new();
+        for i in 0..white_moves + black_moves {
+            let color = if i % 2 == 0 { "true" } else { "false" };
+            moves.push(MoveHistory {
+                sense: h.senses[color][i / 2],
+                sense_result: h.sense_results[color][i / 2].clone(),
+                requested_move: h.requested_moves[color][i / 2].clone().map(|m| m.0),
+                taken_move: h.taken_moves[color][i / 2].clone().map(|m| m.0),
+                capture_square: h.capture_squares[color][i / 2],
+                fen_before: h.fens_before_move[color][i / 2].clone(),
+                fen_after: h.fens_after_move[color][i / 2].clone(),
+            });
+        }
+        GameHistory {
+            white_name: h.white_name,
+            black_name: h.black_name,
+            winner_color: h.winner_color,
+            win_reason: h.win_reason.0,
+            moves
+        }
+    }
+}
+
+#[derive(Debug)]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GameHistoryResponse {
+    game_history: RawGameHistory,
+}
+
+pub fn game_history(game_id: i32) -> MyResult<GameHistory> {
+    let addr = format!("/api/games/{}/game_history", game_id);
+    make_get_request::<GameHistoryResponse>(&addr)
+    .map(|r| r.game_history.into())
 }
