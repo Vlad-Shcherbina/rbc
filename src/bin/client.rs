@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, error};
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 
@@ -268,6 +268,7 @@ fn main() {
 
     let mut game_ids: Vec<i32> = Vec::new();
     loop {
+        announce_myself().expect("TODO");
         info!("active games: {:?}", game_ids);
 
         if game_ids.is_empty() && !running.load(Ordering::SeqCst) {
@@ -289,11 +290,41 @@ fn main() {
                 false
             } else {
                 if gs.is_my_turn {
-                    seconds_left(game_id).expect("TODO");
-                    opponent_move_results(game_id).expect("TODO");
-                    sense(game_id, 0).expect("TODO");
-                    make_move(game_id, Move("d2d4".to_owned())).expect("TODO");
-                    end_turn(game_id).expect("TODO");
+                    match seconds_left(game_id) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("{:?}", e);
+                            return false;
+                        }
+                    }
+                    match opponent_move_results(game_id) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("{:?}", e);
+                            return false;
+                        }
+                    }
+                    match sense(game_id, 0) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("{:?}", e);
+                            return false;
+                        }
+                    }
+                    match make_move(game_id, Move("d2d4".to_owned())) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("{:?}", e);
+                            return false;
+                        }
+                    }
+                    match end_turn(game_id) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("{:?}", e);
+                            return false;
+                        }
+                    }
                 }
                 true
             }
@@ -307,6 +338,6 @@ fn main() {
             }
         }
 
-        std::thread::sleep(std::time::Duration::from_secs(5));
+        std::thread::sleep(std::time::Duration::from_secs(10));
     }
 }
