@@ -20,7 +20,7 @@ fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response
     let resp = req.send()?;
     info!("got {} {}", resp.status_code, resp.body.trim_end());
     if resp.status_code != 200 {
-        Err(format!("{}", resp.status_code))?
+        return Err(format!("{}", resp.status_code).into());
     }
     Ok(serde_json::from_str(&resp.body)?)
 }
@@ -36,7 +36,7 @@ fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
     let resp = req.send()?;
     info!("got  {} {}", resp.status_code, resp.body.trim_end());
     if resp.status_code != 200 {
-        Err(format!("{}", resp.status_code))?
+        return Err(format!("{}", resp.status_code).into());
     }
     Ok(serde_json::from_str(&resp.body)?)
 }
@@ -72,6 +72,7 @@ pub fn announce_myself() -> MyResult<UsersMeResponse> {
     make_post_request::<_, UsersMeResponse>("/api/users/me", &())
 }
 
+#[allow(dead_code)]  // TODO
 #[derive(Serialize)]
 struct UsersMeMaxGamesRequest {
     max_games: i32,
@@ -257,6 +258,7 @@ pub fn opponent_move_results(game_id: i32) -> MyResult<Option<i32>> {
 #[derive(Debug)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::type_complexity)]
 pub struct RawGameHistory {
     #[serde(rename = "type")]
     tp: String,  // "GameHistory"
