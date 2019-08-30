@@ -11,7 +11,19 @@ const SERVER_URL: &str = "https://rbc.jhuapl.edu";
 // let auth = format!("Basic {}", auth);
 const AUTH: &str = "Basic ***REMOVED***";
 
-type MyResult<T> = Result<T, Box<dyn std::error::Error>>;
+#[derive(Debug)]
+pub enum Error {
+    HttpError(i32),
+    Other(Box<dyn std::error::Error>),
+}
+
+impl<T: Into<Box<dyn std::error::Error>>> From<T> for Error {
+    fn from(e: T) -> Error {
+        Error::Other(e.into())
+    }
+}
+
+type MyResult<T> = Result<T, Error>;
 
 fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response> {
     info!("GET {}", addr);
@@ -20,7 +32,7 @@ fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response
     let resp = req.send()?;
     info!("got {} {}", resp.status_code, resp.body.trim_end());
     if resp.status_code != 200 {
-        return Err(format!("{}", resp.status_code).into());
+        return Err(Error::HttpError(resp.status_code));
     }
     Ok(serde_json::from_str(&resp.body)?)
 }
@@ -36,7 +48,7 @@ fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
     let resp = req.send()?;
     info!("got  {} {}", resp.status_code, resp.body.trim_end());
     if resp.status_code != 200 {
-        return Err(format!("{}", resp.status_code).into());
+        return Err(Error::HttpError(resp.status_code));
     }
     Ok(serde_json::from_str(&resp.body)?)
 }
@@ -277,40 +289,51 @@ pub struct RawGameHistory {
 
 #[derive(Debug)]
 pub struct MoveHistory {
-    sense: Option<i32>,
-    sense_result: Vec<(i32, Option<Piece>)>,
-    requested_move: Option<String>,
-    taken_move: Option<String>,
-    capture_square: Option<i32>,
-    fen_before: String,
-    fen_after: String,
+    pub sense: Option<i32>,
+    pub sense_result: Vec<(i32, Option<Piece>)>,
+    pub requested_move: Option<String>,
+    pub taken_move: Option<String>,
+    pub capture_square: Option<i32>,
+    pub fen_before: String,
+    pub fen_after: String,
 }
 
 #[derive(Debug)]
 pub struct GameHistory {
-    white_name: String,
-    black_name: String,
-    winner_color: Color,
-    win_reason: String,
-    moves: Vec<MoveHistory>,
+    pub white_name: String,
+    pub black_name: String,
+    pub winner_color: Color,
+    pub win_reason: String,
+    pub moves: Vec<MoveHistory>,
 }
 
 impl From<RawGameHistory> for GameHistory {
     fn from(h: RawGameHistory) -> GameHistory {
-        let white_moves = h.senses["true"].len();
-        assert_eq!(white_moves, h.sense_results["true"].len());
+        fn eq_or_one_less(x: usize, y: usize) -> bool {
+            x == y || x + 1 == y
+        }
+
+        let white_moves = h.taken_moves["true"].len();
+        // maybe they resigned or timed out after sensing
+        assert!(eq_or_one_less(white_moves, h.senses["true"].len()));
+        assert!(eq_or_one_less(white_moves, h.sense_results["true"].len()));
         assert_eq!(white_moves, h.requested_moves["true"].len());
         assert_eq!(white_moves, h.taken_moves["true"].len());
         assert_eq!(white_moves, h.capture_squares["true"].len());
         assert_eq!(white_moves, h.fens_before_move["true"].len());
         assert_eq!(white_moves, h.fens_after_move["true"].len());
-        let black_moves = h.senses["false"].len();
-        assert_eq!(black_moves, h.sense_results["false"].len());
+
+        let black_moves = h.taken_moves["false"].len();
+        // maybe they resigned or timed out after sensing
+        assert!(eq_or_one_less(black_moves, h.senses["false"].len()));
+        assert!(eq_or_one_less(black_moves, h.sense_results["false"].len()));
         assert_eq!(black_moves, h.requested_moves["false"].len());
         assert_eq!(black_moves, h.taken_moves["false"].len());
         assert_eq!(black_moves, h.capture_squares["false"].len());
         assert_eq!(black_moves, h.fens_before_move["false"].len());
         assert_eq!(black_moves, h.fens_after_move["false"].len());
+
+        assert!(eq_or_one_less(black_moves, white_moves));
         let mut moves = Vec::new();
         for i in 0..white_moves + black_moves {
             let color = if i % 2 == 0 { "true" } else { "false" };
