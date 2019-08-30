@@ -3,6 +3,8 @@ use log::info;
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 
+use crate::game::{Color, Piece};
+
 const SERVER_URL: &str = "https://rbc.jhuapl.edu";
 
 // let auth = base64::encode(&format!("{}:{}", "genetic", "***REMOVED***"));
@@ -41,7 +43,7 @@ fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
 
 #[derive(Debug)]
 #[derive(Serialize, Deserialize)]
-struct TypeValue {
+pub struct TypeValue {
     #[serde(rename = "type")]
     tp: String,
     value: String,
@@ -108,13 +110,19 @@ pub fn game_status(game_id: i32) -> MyResult<GameStatusResponse> {
     make_get_request(&format!("/api/games/{}/game_status", game_id))
 }
 
+impl From<bool> for Color {
+    fn from(b: bool) -> Color {
+        if b { Color::White } else { Color::Black }
+    }
+}
+
 #[derive(Debug)]
 #[derive(Deserialize)]
 struct GameColorResponse {
-    color: bool,
+    color: Color,
 }
 
-pub fn game_color(game_id: i32) -> MyResult<bool> {
+pub fn game_color(game_id: i32) -> MyResult<Color> {
     make_get_request::<GameColorResponse>(&format!("/api/games/{}/color", game_id))
     .map(|r| r.color)
 }
@@ -122,10 +130,10 @@ pub fn game_color(game_id: i32) -> MyResult<bool> {
 #[derive(Debug)]
 #[derive(Deserialize)]
 struct WinnerColorResponse {
-    winner_color: bool,
+    winner_color: Color,
 }
 
-pub fn winner_color(game_id: i32) -> MyResult<bool> {
+pub fn winner_color(game_id: i32) -> MyResult<Color> {
     Ok(make_get_request::<WinnerColorResponse>(&format!("/api/games/{}/winner_color", game_id))?
        .winner_color)
 }
@@ -169,15 +177,12 @@ struct SenseRequest {
     square: i32,
 }
 
-#[derive(Clone, Debug)]
-#[derive(Deserialize)]
-#[serde(from = "TypeValue")]
-struct Piece(String);
-
 impl From<TypeValue> for Piece {
     fn from(tv: TypeValue) -> Piece {
         assert_eq!(tv.tp, "Piece");
-        Piece(tv.value)
+        assert_eq!(tv.value.len(), 1);
+        let c = tv.value.chars().next().unwrap();
+        Piece::from_char(c)
     }
 }
 
@@ -257,7 +262,7 @@ pub struct RawGameHistory {
     tp: String,  // "GameHistory"
     white_name: String,
     black_name: String,
-    winner_color: bool,
+    winner_color: Color,
     win_reason: WinReason,
     senses: HashMap<String, Vec<Option<i32>>>,
     sense_results: HashMap<String, Vec<Vec<(i32, Option<Piece>)>>>,
@@ -283,7 +288,7 @@ pub struct MoveHistory {
 pub struct GameHistory {
     white_name: String,
     black_name: String,
-    winner_color: bool,
+    winner_color: Color,
     win_reason: String,
     moves: Vec<MoveHistory>,
 }
