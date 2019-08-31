@@ -1,5 +1,5 @@
 use rbc::api;
-use rbc::game::{STARTING_FEN, Move};
+use rbc::game::{STARTING_FEN, BoardState, Move};
 
 fn main() {
     env_logger::init();
@@ -19,8 +19,8 @@ fn main() {
                     } else {
                         assert_eq!(m.fen_before, h.moves[i - 1].fen_after);
                     }
-                    fen::BoardState::from_fen(&m.fen_before).unwrap();
-                    fen::BoardState::from_fen(&m.fen_after).unwrap();
+                    let _before: BoardState = fen::BoardState::from_fen(&m.fen_before).unwrap().into();
+                    let _after: BoardState = fen::BoardState::from_fen(&m.fen_after).unwrap().into();
                     if let Some(q) = &m.requested_move {
                         Move::from_uci(q);
                     }

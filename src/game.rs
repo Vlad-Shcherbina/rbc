@@ -37,12 +37,34 @@ impl PieceKind {
     }
 }
 
+impl From<fen::PieceKind> for PieceKind {
+    fn from(p: fen::PieceKind) -> PieceKind {
+        match p {
+            fen::PieceKind::Pawn => PieceKind::Pawn,
+            fen::PieceKind::Knight => PieceKind::Knight,
+            fen::PieceKind::Bishop => PieceKind::Bishop,
+            fen::PieceKind::Rook => PieceKind::Rook,
+            fen::PieceKind::Queen => PieceKind::Queen,
+            fen::PieceKind::King => PieceKind::King,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Deserialize)]
 #[serde(from = "bool")]
 pub enum Color {
     White,
     Black,
+}
+
+impl From<fen::Color> for Color {
+    fn from(c: fen::Color) -> Color {
+        match c {
+            fen::Color::White => Color::White,
+            fen::Color::Black => Color::Black,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -79,6 +101,48 @@ impl Piece {
 impl std::fmt::Debug for Piece {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "<{}>", self.to_char())
+    }
+}
+
+impl From<fen::Piece> for Piece {
+    fn from(p: fen::Piece) -> Piece {
+        Piece {
+            color: p.color.into(),
+            kind: p.kind.into(),
+        }
+    }
+}
+
+pub struct BoardState {
+    pub pieces: [Option<Piece>; 64],
+    pub side_to_play: Color,
+    pub white_can_oo: bool,
+    pub white_can_ooo: bool,
+    pub black_can_oo: bool,
+    pub black_can_ooo: bool,
+    pub en_passant_square: Option<i32>,
+    pub halfmove_clock: i32,
+    pub fullmove_number: i32,
+}
+
+impl From<fen::BoardState> for BoardState {
+    fn from(b: fen::BoardState) -> BoardState {
+        let mut pieces = [None; 64];
+        assert_eq!(b.pieces.len(), 64);
+        for (i, p) in b.pieces.into_iter().enumerate() {
+            pieces[i] = p.map(|p| p.into());
+        }
+        BoardState {
+            pieces: pieces,
+            side_to_play: b.side_to_play.into(),
+            white_can_oo: b.white_can_oo,
+            white_can_ooo: b.white_can_ooo,
+            black_can_oo: b.black_can_oo,
+            black_can_ooo: b.black_can_ooo,
+            en_passant_square: b.en_passant_square.map(|b| b as i32),
+            halfmove_clock: b.halfmove_clock as i32,
+            fullmove_number: b.fullmove_number as i32,
+        }
     }
 }
 
