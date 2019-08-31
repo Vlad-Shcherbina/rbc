@@ -13,10 +13,14 @@ fn main() {
                     "{}: {:>25} - {:25} {:?} {:12}  {} moves",
                     game_id,
                     h.white_name, h.black_name, h.winner_color, h.win_reason, h.moves.len());
-                if let Some(m) = h.moves.first() {
-                    assert_eq!(m.fen_before, STARTING_FEN);
-                }
-                for m in &h.moves {
+                for (i, m) in h.moves.iter().enumerate() {
+                    if i == 0 {
+                        assert_eq!(m.fen_before, STARTING_FEN);
+                    } else {
+                        assert_eq!(m.fen_before, h.moves[i - 1].fen_after);
+                    }
+                    fen::BoardState::from_fen(&m.fen_before).unwrap();
+                    fen::BoardState::from_fen(&m.fen_after).unwrap();
                     if let Some(q) = &m.requested_move {
                         Move::from_uci(q);
                     }
