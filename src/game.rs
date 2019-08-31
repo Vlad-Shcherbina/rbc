@@ -67,7 +67,7 @@ impl From<fen::Color> for Color {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[derive(Deserialize)]
 #[serde(from = "crate::api::TypeValue")]
 pub struct Piece {
@@ -113,8 +113,9 @@ impl From<fen::Piece> for Piece {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct BoardState {
-    pub pieces: [Option<Piece>; 64],
+    pub pieces: crate::derive_wrapper::Wrapper<[Option<Piece>; 64]>,
     pub side_to_play: Color,
     pub white_can_oo: bool,
     pub white_can_ooo: bool,
@@ -133,15 +134,101 @@ impl From<fen::BoardState> for BoardState {
             pieces[i] = p.map(|p| p.into());
         }
         BoardState {
-            pieces: pieces,
+            pieces: crate::derive_wrapper::Wrapper::new(pieces),
             side_to_play: b.side_to_play.into(),
             white_can_oo: b.white_can_oo,
             white_can_ooo: b.white_can_ooo,
             black_can_oo: b.black_can_oo,
             black_can_ooo: b.black_can_ooo,
-            en_passant_square: b.en_passant_square.map(|b| b as i32),
+            en_passant_square: b.en_passant_square.map(i32::from),
             halfmove_clock: b.halfmove_clock as i32,
             fullmove_number: b.fullmove_number as i32,
+        }
+    }
+}
+
+impl BoardState {
+    #[allow(clippy::cognitive_complexity)]
+    pub fn make_move(&mut self, m: Option<Move>) {
+        self.side_to_play = match self.side_to_play {
+            Color::White => Color::Black,
+            Color::Black => { self.fullmove_number += 1; Color::White },
+        };
+        self.halfmove_clock += 1 ;
+        let m = match m {
+            Some(m) => m,
+            None => return,
+        };
+        let mut p = self.pieces.0[m.from as usize].take();
+        match p {
+            Some(Piece { kind: PieceKind::Pawn, ..}) => {
+                if m.to < 8 || m.to >= 56 {
+                    p.as_mut().unwrap().kind = m.promotion.unwrap();
+                }
+                self.halfmove_clock = 0;
+            }
+            Some(_) => {}
+            None => panic!()
+        }
+        if self.pieces.0[m.to as usize].is_some() {
+            self.halfmove_clock = 0;
+        }
+        self.pieces.0[m.to as usize] = p;
+
+        if p.unwrap().kind == PieceKind::King && m.from == 4 && m.to == 6 {
+            assert!(self.white_can_oo);
+            assert_eq!(self.pieces.0[7].unwrap().kind, PieceKind::Rook);
+            self.white_can_oo = false;
+            self.white_can_ooo = false;
+            assert!(self.pieces.0[5].is_none());
+            self.pieces.0[5] = self.pieces.0[7].take();
+        }
+        if p.unwrap().kind == PieceKind::King && m.from == 4 && m.to == 2 {
+            assert!(self.white_can_ooo);
+            assert_eq!(self.pieces.0[0].unwrap().kind, PieceKind::Rook);
+            self.white_can_oo = false;
+            self.white_can_ooo = false;
+            assert!(self.pieces.0[3].is_none());
+            self.pieces.0[3] = self.pieces.0[0].take();
+        }
+
+        if p.unwrap().kind == PieceKind::King && m.from == 60 && m.to == 62 {
+            assert!(self.black_can_oo);
+            assert_eq!(self.pieces.0[63].unwrap().kind, PieceKind::Rook);
+            self.black_can_oo = false;
+            self.black_can_ooo = false;
+            assert!(self.pieces.0[61].is_none());
+            self.pieces.0[61] = self.pieces.0[63].take();
+        }
+        if p.unwrap().kind == PieceKind::King && m.from == 60 && m.to == 58 {
+            assert!(self.black_can_ooo);
+            assert_eq!(self.pieces.0[56].unwrap().kind, PieceKind::Rook);
+            self.black_can_oo = false;
+            self.black_can_ooo = false;
+            assert!(self.pieces.0[59].is_none());
+            self.pieces.0[59] = self.pieces.0[56].take();
+        }
+
+        if m.to == 4 || m.from == 4 {
+            self.white_can_oo = false;
+            self.white_can_ooo = false;
+        }
+        if m.to == 0 || m.from == 0 {
+            self.white_can_ooo = false;
+        }
+        if m.to == 7 || m.from == 7 {
+            self.white_can_oo = false;
+        }
+
+        if m.to == 60 || m.from == 60 {
+            self.black_can_oo = false;
+            self.black_can_ooo = false;
+        }
+        if m.to == 56 || m.from == 56 {
+            self.black_can_ooo = false;
+        }
+        if m.to == 63 || m.from == 63 {
+            self.black_can_oo = false;
         }
     }
 }

@@ -19,14 +19,17 @@ fn main() {
                     } else {
                         assert_eq!(m.fen_before, h.moves[i - 1].fen_after);
                     }
-                    let _before: BoardState = fen::BoardState::from_fen(&m.fen_before).unwrap().into();
-                    let _after: BoardState = fen::BoardState::from_fen(&m.fen_after).unwrap().into();
+                    let before: BoardState = fen::BoardState::from_fen(&m.fen_before).unwrap().into();
+                    let after: BoardState = fen::BoardState::from_fen(&m.fen_after).unwrap().into();
                     if let Some(q) = &m.requested_move {
                         Move::from_uci(q);
                     }
-                    if let Some(q) = &m.taken_move {
-                        Move::from_uci(q);
-                    }
+                    let mut state = before;
+                    dbg!(&m.taken_move);
+                    let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
+                    state.make_move(m);
+                    state.en_passant_square = after.en_passant_square;  // TODO
+                    assert_eq!(state, after);
                 }
             }
             Err(api::Error::HttpError(404)) => {
