@@ -158,7 +158,7 @@ pub fn winner_color(game_id: i32) -> MyResult<Color> {
 #[derive(Debug)]
 #[derive(Deserialize)]
 #[serde(from = "TypeValue")]
-struct WinReason(String);
+pub struct WinReason(pub String);
 
 impl From<TypeValue> for WinReason {
     fn from(tv: TypeValue) -> WinReason {
@@ -217,7 +217,7 @@ pub fn sense(game_id: i32, square: i32) -> MyResult<SenseResponse> {
 #[derive(Serialize, Deserialize)]
 #[serde(into = "TypeValue")]
 #[serde(from = "TypeValue")]
-struct Move(String);
+pub struct Move(String);
 
 impl From<TypeValue> for Move {
     fn from(tv: TypeValue) -> Move {
@@ -277,18 +277,18 @@ pub fn opponent_move_results(game_id: i32) -> MyResult<Option<i32>> {
 #[allow(clippy::type_complexity)]
 pub struct RawGameHistory {
     #[serde(rename = "type")]
-    tp: String,  // "GameHistory"
-    white_name: String,
-    black_name: String,
-    winner_color: Color,
-    win_reason: WinReason,
-    senses: HashMap<String, Vec<Option<i32>>>,
-    sense_results: HashMap<String, Vec<Vec<(i32, Option<Piece>)>>>,
-    requested_moves: HashMap<String, Vec<Option<Move>>>,
-    taken_moves: HashMap<String, Vec<Option<Move>>>,
-    capture_squares: HashMap<String, Vec<Option<i32>>>,
-    fens_before_move: HashMap<String, Vec<String>>,
-    fens_after_move: HashMap<String, Vec<String>>,
+    pub tp: String,  // "GameHistory"
+    pub white_name: String,
+    pub black_name: String,
+    pub winner_color: Option<Color>,
+    pub win_reason: WinReason,
+    pub senses: HashMap<String, Vec<Option<i32>>>,
+    pub sense_results: HashMap<String, Vec<Vec<(i32, Option<Piece>)>>>,
+    pub requested_moves: HashMap<String, Vec<Option<Move>>>,
+    pub taken_moves: HashMap<String, Vec<Option<Move>>>,
+    pub capture_squares: HashMap<String, Vec<Option<i32>>>,
+    pub fens_before_move: HashMap<String, Vec<String>>,
+    pub fens_after_move: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -306,7 +306,7 @@ pub struct MoveHistory {
 pub struct GameHistory {
     pub white_name: String,
     pub black_name: String,
-    pub winner_color: Color,
+    pub winner_color: Option<Color>,
     pub win_reason: String,
     pub moves: Vec<MoveHistory>,
 }

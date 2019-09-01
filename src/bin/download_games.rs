@@ -45,7 +45,7 @@ fn main() {
         game_id INTEGER PRIMARY KEY,
         white_name TEXT,
         black_name TEXT,
-        winner_color TEXT,  -- 'w' or 'b'
+        winner_color TEXT,  -- 'White', 'Black', NULL for draw
         win_reason TEXT,
         num_moves INTEGER,
         dict_id INTEGER,
@@ -77,7 +77,7 @@ fn main() {
     });
     dbg!((dict_id, dict.len()));
 
-    let game_ids = 12000..18000;
+    let game_ids = 12000..16000;
     let pb = Arc::new(Mutex::new(pbr::ProgressBar::new(game_ids.len() as u64)));
     pb.lock().unwrap().message("games to download  ");
 
@@ -99,14 +99,15 @@ fn main() {
                     dbg!(e);
                     panic!()
                 });
-                let h = api::GameHistory::from(h.game_history);
+                let h = h.game_history;
+                let num_moves = h.taken_moves["true"].len() + h.taken_moves["false"].len();
                 Some((
                     game_id,
                     h.white_name,
                     h.black_name,
                     h.winner_color,
                     h.win_reason,
-                    h.moves.len(),
+                    num_moves,
                     zd,
                 ))
             }
@@ -131,11 +132,14 @@ fn main() {
     VALUES (?,  ?, ?,  ?, ?, ?,  ?, ?)").unwrap();
     for row in rows {
         let (game_id, white_name, black_name, winner_color, win_reason, num_moves, data) = row;
-        let winner_color = format!("{:?}", winner_color);
+        let winner_color = winner_color.map(|c| match c {
+            rbc::game::Color::White => "White",
+            rbc::game::Color::Black => "Black",
+        });
         let res = q.insert(params![
             game_id,
             white_name, black_name,
-            winner_color, win_reason, num_moves as i32,
+            winner_color, win_reason.0, num_moves as i32,
             dict_id, data,
         ]);
         match res {

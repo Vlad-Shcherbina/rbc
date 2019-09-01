@@ -1,5 +1,5 @@
 use rbc::api;
-use rbc::game::{STARTING_FEN, BoardState, Move};
+use rbc::game::{STARTING_FEN, Color, BoardState, Move};
 
 fn main() {
     env_logger::init();
@@ -9,10 +9,15 @@ fn main() {
     loop {
         match api::game_history(game_id) {
             Ok(h) => {
+                let winner_color = match h.winner_color {
+                    Some(Color::White) => "White",
+                    Some(Color::Black) => "Black",
+                    None => "-",
+                };
                 println!(
-                    "{}: {:>25} - {:25} {:?} {:12}  {} moves",
+                    "{}: {:>25} - {:25} {:5} {:12}  {} moves",
                     game_id,
-                    h.white_name, h.black_name, h.winner_color, h.win_reason, h.moves.len());
+                    h.white_name, h.black_name, winner_color, h.win_reason, h.moves.len());
                 for (i, m) in h.moves.iter().enumerate() {
                     if i == 0 {
                         assert_eq!(m.fen_before, STARTING_FEN);
