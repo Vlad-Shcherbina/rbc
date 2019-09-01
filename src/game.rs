@@ -166,6 +166,15 @@ impl BoardState {
                     p.as_mut().unwrap().kind = m.promotion.unwrap();
                 }
                 self.halfmove_clock = 0;
+
+                if let Some(ep) = self.en_passant_square {
+                    if m.to == ep {
+                        match self.side_to_play {
+                            Color::White => self.pieces.0[(ep + 8) as usize] = None,
+                            Color::Black => self.pieces.0[(ep - 8) as usize] = None,
+                        }
+                    }
+                }
             }
             Some(_) => {}
             None => panic!()
