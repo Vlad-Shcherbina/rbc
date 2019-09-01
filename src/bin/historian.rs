@@ -1,10 +1,11 @@
+use std::fmt::Write;
 use std::io::Read;
 use std::sync::Mutex;
 use rusqlite::{Connection, params};
 use rbc::api;
-use rbc::game::{STARTING_FEN, BoardState, Move};
+use rbc::game::{STARTING_FEN, BoardState, Move, square_to_uci};
 
-fn check_game(h: api::GameHistory, log: &Mutex<Vec<String>>) {
+fn check_game(h: api::GameHistory, log: &Mutex<String>) {
     for (i, m) in h.moves.iter().enumerate() {
         if i == 0 {
             assert_eq!(m.fen_before, STARTING_FEN);
@@ -17,7 +18,16 @@ fn check_game(h: api::GameHistory, log: &Mutex<Vec<String>>) {
             Move::from_uci(q);
         }
         let mut state = before;
-        log.lock().unwrap().push(m.taken_move.clone().unwrap_or_else(|| "--".into()));
+        if let Some(ep) = state.en_passant_square {
+            writeln!(log.lock().unwrap(),
+                "en passant square: {}", square_to_uci(ep)
+            ).unwrap();
+        }
+        writeln!(log.lock().unwrap(),
+            "{:?} {}",
+            state.side_to_play,
+            m.taken_move.as_ref().map_or("--", String::as_ref),
+        ).unwrap();
         let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
         state.make_move(m);
         state.en_passant_square = after.en_passant_square;  // TODO
@@ -69,15 +79,12 @@ fn main() {
         let h: api::GameHistoryResponse = serde_json::from_str(&h).unwrap();
         let h: api::GameHistory = h.game_history.into();
 
-        let log = Mutex::new(Vec::new());
+        let log = Mutex::new(String::new());
         match std::panic::catch_unwind(|| { check_game(h, &log); }) {
             Ok(()) => {},
-            Err(e) => {
+            Err(_) => {
                 dbg!(game_id);
-                dbg!(e);
-                for m in log.into_inner().unwrap() {
-                    println!("{}", m);
-                }
+                println!("{}", log.into_inner().unwrap());
                 std::process::exit(1);
             }
         }

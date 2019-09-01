@@ -257,6 +257,11 @@ impl Move {
     }
 }
 
+pub fn square_to_uci(s: i32) -> String {
+    assert!(0 <= s && s < 64);
+    format!("{}{}", ('a' as i32 + s % 8) as u8 as char, s / 8 + 1)
+}
+
 fn square_from_uci(s: &str) -> i32 {
     let mut it = s.chars();
     let file = it.next().unwrap();
@@ -279,7 +284,11 @@ mod tests {
     }
 
     #[test]
-    fn test_square_from_uci() {
+    fn test_square_to_from_uci() {
+        assert_eq!(square_to_uci(0), "a1");
+        assert_eq!(square_to_uci(1), "b1");
+        assert_eq!(square_to_uci(63), "h8");
+
         assert_eq!(square_from_uci("a1"), 0);
         assert_eq!(square_from_uci("b1"), 1);
         assert_eq!(square_from_uci("h8"), 63);
