@@ -372,9 +372,3 @@ pub fn game_history_raw(game_id: i32) -> MyResult<String> {
     let addr = format!("/api/games/{}/game_history", game_id);
     make_get_request_raw(&addr)
 }
-
-pub fn game_history(game_id: i32) -> MyResult<GameHistory> {
-    let addr = format!("/api/games/{}/game_history", game_id);
-    make_get_request::<GameHistoryResponse>(&addr)
-    .map(|r| r.game_history.into())
-}
