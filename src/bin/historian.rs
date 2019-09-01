@@ -17,7 +17,7 @@ fn check_game(h: api::GameHistory, log: &Mutex<Vec<String>>) {
             Move::from_uci(q);
         }
         let mut state = before;
-        log.lock().unwrap().push(m.taken_move.clone().unwrap_or("--".into()));
+        log.lock().unwrap().push(m.taken_move.clone().unwrap_or_else(|| "--".into()));
         let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
         state.make_move(m);
         state.en_passant_square = after.en_passant_square;  // TODO
@@ -39,10 +39,18 @@ fn main() {
         }).unwrap().collect();
     let dicts = dicts.unwrap();
 
-    conn.prepare("
-        SELECT game_id, dict_id, data
-        FROM game").unwrap()
+    let filter = "";
+    // let filter = "WHERE game_id > 17000";
+
+    let cnt: i64 =
+        conn.prepare(&format!("SELECT COUNT(*) FROM game {}", filter)).unwrap()
+        .query_row(params![], |row| row.get(0)).unwrap();
+    let mut pb = pbr::ProgressBar::new(cnt as u64);
+
+    conn.prepare(
+        &format!("SELECT game_id, dict_id, data FROM game {}", filter)).unwrap()
     .query_map(params![], |row| {
+        pb.inc();
         let game_id: i32 = row.get(0)?;
         let dict_id: i64 = row.get(1)?;
         let data: &[u8] = row.get_raw(2).as_blob().unwrap();
@@ -57,10 +65,6 @@ fn main() {
             &dicts[&dict_id]).unwrap();
         let mut h = String::new();
         dec.read_to_string(&mut h).unwrap();
-
-        if game_id % 100 == 0 {
-            println!("{}", game_id);
-        }
 
         let h: api::GameHistoryResponse = serde_json::from_str(&h).unwrap();
         let h: api::GameHistory = h.game_history.into();
@@ -81,4 +85,6 @@ fn main() {
         Ok(())
     }).unwrap()
     .collect::<Result<(), _>>().unwrap();
+    pb.finish();
+    println!();
 }
