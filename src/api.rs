@@ -25,7 +25,7 @@ impl<T: Into<Box<dyn std::error::Error>>> From<T> for Error {
 
 type MyResult<T> = Result<T, Error>;
 
-fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response> {
+fn make_get_request_raw(addr: &str) -> MyResult<String> {
     info!("GET {}", addr);
     let req = minreq::get(format!("{}{}", SERVER_URL, addr))
         .with_header("Authorization", AUTH);
@@ -34,7 +34,11 @@ fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response
     if resp.status_code != 200 {
         return Err(Error::HttpError(resp.status_code));
     }
-    Ok(serde_json::from_str(&resp.body)?)
+    Ok(resp.body)
+}
+
+fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response> {
+    Ok(serde_json::from_str(&make_get_request_raw(addr)?)?)
 }
 
 fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
@@ -360,8 +364,13 @@ impl From<RawGameHistory> for GameHistory {
 #[derive(Debug)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct GameHistoryResponse {
-    game_history: RawGameHistory,
+pub struct GameHistoryResponse {
+    pub game_history: RawGameHistory,
+}
+
+pub fn game_history_raw(game_id: i32) -> MyResult<String> {
+    let addr = format!("/api/games/{}/game_history", game_id);
+    make_get_request_raw(&addr)
 }
 
 pub fn game_history(game_id: i32) -> MyResult<GameHistory> {
