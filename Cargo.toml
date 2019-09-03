@@ -14,7 +14,7 @@ env_logger = { version = "*", default-features = false, features = ["termcolor",
 ctrlc = "*"
 fen = "*"
 rusqlite = { version = "*", features = ["bundled"] }
-zstd = "*"
+zstd = { version = "*", default-features = false }
 miniz_oxide = "*"
 rayon = "*"
 rand = "*"
