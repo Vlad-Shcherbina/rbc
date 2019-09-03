@@ -3,7 +3,7 @@ use std::io::Read;
 use std::sync::Mutex;
 use rusqlite::{Connection, params};
 use rbc::api;
-use rbc::game::{STARTING_FEN, BoardState, Move, square_to_uci};
+use rbc::game::{STARTING_FEN, Piece, BoardState, Move, square_to_uci};
 
 fn check_game(h: api::GameHistory, log: &Mutex<String>) {
     for (i, m) in h.moves.iter().enumerate() {
@@ -18,6 +18,16 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             Move::from_uci(q);
         }
         let mut state = before;
+
+        for rank in (0..8).rev() {
+            for file in 0..8 {
+                write!(log.lock().unwrap(),
+                    " {}", state.pieces.0[file + 8 * rank].map_or('.', Piece::to_char)
+                ).unwrap();
+            }
+            writeln!(log.lock().unwrap()).unwrap();
+        }
+
         if let Some(ep) = state.en_passant_square {
             writeln!(log.lock().unwrap(),
                 "en passant square: {}", square_to_uci(ep)
@@ -30,7 +40,11 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
         ).unwrap();
         let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
         state.make_move(m);
-        state.en_passant_square = after.en_passant_square;  // TODO
+        if state.en_passant_square.is_some() &&
+           after.en_passant_square.is_none() {
+            // their bug
+            state.en_passant_square = None;
+        }
         assert_eq!(state, after);
     }
 }

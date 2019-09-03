@@ -90,7 +90,7 @@ impl Piece {
         }
     }
 
-    fn to_char(self) -> char {
+    pub fn to_char(self) -> char {
         match self.color {
             Color::Black => self.kind.to_char(),
             Color::White => self.kind.to_char().to_ascii_uppercase(),
@@ -157,17 +157,15 @@ impl BoardState {
         self.halfmove_clock += 1 ;
         let m = match m {
             Some(m) => m,
-            None => return,
+            None => {
+                self.en_passant_square = None;
+                return;
+            }
         };
         let mut p = self.pieces.0[m.from as usize].take();
         match p {
             Some(Piece { kind: PieceKind::Pawn, ..}) => {
-                if m.to < 8 || m.to >= 56 {
-                    p.as_mut().unwrap().kind = m.promotion.unwrap();
-                }
-                self.halfmove_clock = 0;
-
-                if let Some(ep) = self.en_passant_square {
+                if let Some(ep) = self.en_passant_square.take() {
                     if m.to == ep {
                         match self.side_to_play {
                             Color::White => self.pieces.0[(ep + 8) as usize] = None,
@@ -175,8 +173,42 @@ impl BoardState {
                         }
                     }
                 }
+
+                if m.to < 8 || m.to >= 56 {
+                    p.as_mut().unwrap().kind = m.promotion.unwrap();
+                }
+                self.halfmove_clock = 0;
+
+                if m.to == m.from - 16 {
+                    let file = m.to % 8;
+                    if file > 0 &&
+                       self.pieces.0[(m.from - 17) as usize] ==
+                       Some(Piece { color: Color::White, kind: PieceKind::Pawn}) {
+                        self.en_passant_square = Some(m.from - 8);
+                    }
+                    if file < 7 &&
+                       self.pieces.0[(m.from - 15) as usize] ==
+                       Some(Piece { color: Color::White, kind: PieceKind::Pawn}) {
+                        self.en_passant_square = Some(m.from - 8);
+                    }
+                }
+                if m.to == m.from + 16 {
+                    let file = m.to % 8;
+                    if file > 0 &&
+                       self.pieces.0[(m.from + 15) as usize] ==
+                       Some(Piece { color: Color::Black, kind: PieceKind::Pawn}) {
+                        self.en_passant_square = Some(m.from + 8);
+                    }
+                    if file < 7 &&
+                       self.pieces.0[(m.from + 17) as usize] ==
+                       Some(Piece { color: Color::Black, kind: PieceKind::Pawn}) {
+                        self.en_passant_square = Some(m.from + 8);
+                    }
+                }
             }
-            Some(_) => {}
+            Some(_) => {
+                self.en_passant_square = None;
+            }
             None => panic!()
         }
         if self.pieces.0[m.to as usize].is_some() {
