@@ -10,7 +10,7 @@ minreq = { version = "1.4.1-alpha.0", features = ["https"] }
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 log = "*"
-env_logger = "*"
+env_logger = { version = "*", default-features = false, features = ["termcolor", "atty", "humantime"] }
 ctrlc = "*"
 fen = "*"
 rusqlite = { version = "*", features = ["bundled"] }
