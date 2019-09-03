@@ -106,6 +106,17 @@ struct AcceptInvitationResponse {
     game_id: i32,
 }
 
+#[derive(Serialize)]
+struct PostInvitationRequest {
+    opponent: String,
+    color: Color,
+}
+
+#[derive(Deserialize)]
+struct PostInvitationResponse {
+    game_id: i32,
+}
+
 pub fn list_invitations() -> MyResult<Vec<i32>> {
     Ok(make_get_request::<ListInvitationsResponse>("/api/invitations/")?
        .invitations)
@@ -114,6 +125,15 @@ pub fn list_invitations() -> MyResult<Vec<i32>> {
 pub fn accept_invitation(inv_id: i32) -> MyResult<i32> {
     Ok(make_post_request::<_, AcceptInvitationResponse>(&format!("/api/invitations/{}", inv_id), &())?
        .game_id)
+}
+
+pub fn post_invitation(opponent: &str, color: Color) -> MyResult<i32> {
+    let r = PostInvitationRequest {
+        opponent: opponent.into(),
+        color,
+    };
+    let resp: PostInvitationResponse = make_post_request("/api/invitations/", &r)?;
+    Ok(resp.game_id)
 }
 
 #[derive(Debug)]
@@ -130,6 +150,15 @@ pub fn game_status(game_id: i32) -> MyResult<GameStatusResponse> {
 impl From<bool> for Color {
     fn from(b: bool) -> Color {
         if b { Color::White } else { Color::Black }
+    }
+}
+
+impl From<Color> for bool {
+    fn from(c: Color) -> bool {
+        match c {
+            Color::White => true,
+            Color::Black => false,
+        }
     }
 }
 
@@ -242,12 +271,26 @@ struct MoveRequest {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
-pub struct MoveResponse {
+struct RawMoveResponse {
     move_result: (Option<Move>, Option<Move>, Option<i32>),  // (requested, taken, capture square)
 }
 
+#[derive(Debug)]
+pub struct MoveResponse {
+    pub requested: Option<String>,
+    pub taken: Option<String>,
+    pub capture_square: Option<i32>,
+}
+
 pub fn make_move(game_id: i32, m: String) -> MyResult<MoveResponse> {
-    make_post_request(&format!("/api/games/{}/move", game_id), &MoveRequest { requested_move: Move(m) })
+    let mr: RawMoveResponse = make_post_request(
+        &format!("/api/games/{}/move", game_id),
+        &MoveRequest { requested_move: Move(m) })?;
+    Ok(MoveResponse {
+        requested: mr.move_result.0.map(|m| m.0),
+        taken: mr.move_result.1.map(|m| m.0),
+        capture_square: mr.move_result.2,
+    })
 }
 
 #[derive(Debug)]

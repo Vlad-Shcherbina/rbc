@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -51,8 +51,8 @@ impl From<fen::PieceKind> for PieceKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Deserialize)]
-#[serde(from = "bool")]
+#[derive(Serialize, Deserialize)]
+#[serde(from = "bool", into="bool")]
 pub enum Color {
     White,
     Black,
@@ -375,6 +375,14 @@ impl Move {
             promotion: p.map(PieceKind::from_char),
         }
     }
+
+    pub fn to_uci(&self) -> String {
+        let mut result = format!("{}{}", square_to_uci(self.from), square_to_uci(self.to));
+        if let Some(p) = self.promotion {
+            result.push(p.to_char());
+        }
+        result
+    }
 }
 
 pub fn square_to_uci(s: i32) -> String {
@@ -415,8 +423,10 @@ mod tests {
     }
 
     #[test]
-    fn test_move_from_uci() {
+    fn test_move_to_from_uci() {
         assert_eq!(Move::from_uci("a2c1"), Move { from: 8, to: 2, promotion: None });
         assert_eq!(Move::from_uci("a2c1q"), Move { from: 8, to: 2, promotion: Some(PieceKind::Queen) });
+        assert_eq!(Move { from: 8, to: 2, promotion: None }.to_uci(), "a2c1");
+        assert_eq!(Move { from: 8, to: 2, promotion: Some(PieceKind::Queen) }.to_uci(), "a2c1q");
     }
 }
