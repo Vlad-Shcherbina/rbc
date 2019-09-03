@@ -63,7 +63,15 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             assert_eq!(state, before);
 
             writeln!(log.lock().unwrap(),
-                "my move:  {}",
+                "my move (requested): {}",
+                m.requested_move.as_ref().map_or("--", String::as_ref),
+            ).unwrap();
+            if let Some(m) = m.requested_move.as_ref() {
+                let all_moves = state.all_sensible_requested_moves();
+                assert!(all_moves.contains(&Move::from_uci(m)));
+            }
+            writeln!(log.lock().unwrap(),
+                "my move (taken):     {}",
                 m.taken_move.as_ref().map_or("--", String::as_ref),
             ).unwrap();
 
@@ -99,6 +107,7 @@ fn main() {
         conn.prepare(&format!("SELECT COUNT(*) FROM game {}", filter)).unwrap()
         .query_row(params![], |row| row.get(0)).unwrap();
     let mut pb = pbr::ProgressBar::new(cnt as u64);
+    pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(500)));
 
     conn.prepare(
         &format!("SELECT game_id, dict_id, data FROM game {}", filter)).unwrap()
@@ -127,7 +136,9 @@ fn main() {
             Ok(()) => {},
             Err(_) => {
                 dbg!(game_id);
-                println!("{}", log.into_inner().unwrap());
+                let log = log.into_inner().unwrap();
+                let start = if log.len() < 1000 { 0 } else { log.len() - 1000 };
+                println!("{}", &log[start..]);
                 std::process::exit(1);
             }
         }

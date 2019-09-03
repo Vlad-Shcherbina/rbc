@@ -1,5 +1,13 @@
 use crate::game::{Color, PieceKind, Piece, Move, BoardState};
 
+const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
+    Some(PieceKind::Knight),
+    Some(PieceKind::Bishop),
+    Some(PieceKind::Rook),
+    Some(PieceKind::Queen),
+    None,
+];
+
 impl BoardState {
     pub fn make_move_under_fog(&mut self, capture_square: Option<i32>) {
         self.side_to_play = self.side_to_play.opposite();
@@ -158,5 +166,142 @@ impl BoardState {
         if m.to == 63 || m.from == 63 {
             self.black_can_oo = false;
         }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    pub fn all_sensible_requested_moves(&self) -> Vec<Move> {
+        let mut result = Vec::new();
+        for (from, p) in self.pieces.0.iter().enumerate() {
+            if p.is_none() {
+                continue;
+            }
+            let from = from as i32;
+            let p = p.unwrap();
+            assert_eq!(p.color, self.side_to_play);
+            match p.kind {
+                PieceKind::Pawn => {
+                    let rank = from / 8;
+                    let file = from % 8;
+                    let (dr, home_rank, promotion_rank) = match self.side_to_play {
+                        Color::White => (1, 1, 6),
+                        Color::Black => (-1, 6, 1),
+                    };
+
+                    assert!(0 <= rank + dr && rank + dr < 8);
+                    if self.pieces.0[(from + 8 * dr) as usize].is_none() {
+                        let promotion_targets = if rank == promotion_rank {
+                            PROMOTION_TARGETS
+                        } else {
+                            &[None]
+                        };
+                        for &promotion in promotion_targets {
+                            result.push(Move {
+                                from,
+                                to: from + 8 * dr,
+                                promotion,
+                            });
+                        }
+                        if rank == home_rank && self.pieces.0[(from + 16 * dr) as usize].is_none() {
+                            result.push(Move {
+                                from,
+                                to: from + 16 * dr,
+                                promotion: None,
+                            });
+                        }
+                    }
+                    for df in &[-1, 1] {
+                        if file + df < 0 || file + df >= 8 {
+                            continue;
+                        }
+                        let to = (rank + dr) * 8 + file + df;
+                        if self.pieces.0[to as usize].is_none() {
+                            let promotion_targets = if rank + dr == 0 || rank + dr == 7 {
+                                PROMOTION_TARGETS
+                            } else {
+                                &[None]
+                            };
+                            for &promotion in promotion_targets {
+                                result.push(Move { from, to, promotion });
+                            }
+                        }
+                    }
+                },
+                PieceKind::Bishop |
+                PieceKind::Rook |
+                PieceKind::Queen => {
+                    let dirs: &[_] = match p.kind {
+                        PieceKind::Bishop => &[(-1, -1), (-1, 1), (1, -1), (1, 1)],
+                        PieceKind::Rook => &[(-1, 0), (0, -1), (0, 1), (1, 0)],
+                        PieceKind::Queen => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        _ => unreachable!(),
+                    };
+                    for &(dr, df) in dirs {
+                        let mut r = from / 8;
+                        let mut f = from % 8;
+                        loop {
+                            r += dr;
+                            f += df;
+                            if r < 0 || r >= 8 || f < 0 || f >= 8 {
+                                break;
+                            }
+                            let to = r * 8 + f;
+                            if self.pieces.0[to as usize].is_some() {
+                                break;
+                            }
+                            result.push(Move { from, to, promotion: None });
+                        }
+                    }
+                }
+                PieceKind::Knight |
+                PieceKind::King => {
+                    let dirs: &[_] = match p.kind {
+                        PieceKind::Knight => &[(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)],
+                        PieceKind::King => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        _ => unreachable!(),
+                    };
+                    for &(dr, df) in dirs {
+                        let r = from / 8 + dr;
+                        let f = from % 8 + df;
+                        if r < 0 || r >= 8 || f < 0 || f >= 8 {
+                            continue;
+                        }
+                        let to = r * 8 + f;
+                        if self.pieces.0[to as usize].is_some() {
+                            continue;
+                        }
+                        result.push(Move { from, to, promotion: None });
+                    }
+                }
+            }
+        }
+        match self.side_to_play {
+            Color::White => {
+                if self.white_can_oo &&
+                   self.pieces.0[5].is_none() &&
+                   self.pieces.0[6].is_none() {
+                    result.push(Move { from: 4, to: 6, promotion: None });
+                }
+                if self.white_can_ooo &&
+                   self.pieces.0[1].is_none() &&
+                   self.pieces.0[2].is_none() &&
+                   self.pieces.0[3].is_none() {
+                    result.push(Move { from: 4, to: 2, promotion: None });
+                }
+            }
+            Color::Black => {
+                if self.black_can_oo &&
+                   self.pieces.0[56 + 5].is_none() &&
+                   self.pieces.0[56 + 6].is_none() {
+                    result.push(Move { from: 56 + 4, to: 56 + 6, promotion: None });
+                }
+                if self.black_can_ooo &&
+                   self.pieces.0[56 + 1].is_none() &&
+                   self.pieces.0[56 + 2].is_none() &&
+                   self.pieces.0[56 + 3].is_none() {
+                    result.push(Move { from: 56 + 4, to: 56 + 2, promotion: None });
+                }
+            }
+        }
+        result
     }
 }

@@ -3,6 +3,35 @@ use rand::Rng;
 use rbc::game::{STARTING_FEN, Color, Move, BoardState};
 use rbc::api;
 
+fn random_move(state: &BoardState) -> Move {
+    let mut from: i32;
+    loop {
+        from = rand::thread_rng().gen_range(0, 64);
+        let p = state.pieces.0[from as usize];
+        if p.is_some() && p.unwrap().color == state.side_to_play {
+            break;
+        }
+    }
+    let mut to: i32;
+    loop {
+        to = rand::thread_rng().gen_range(0, 64);
+        let p = state.pieces.0[to as usize];
+        if p.is_some() && p.unwrap().color == state.side_to_play {
+            continue;
+        }
+        let dr = (from / 8 - to / 8).abs();
+        let df = (from % 8 - to % 8).abs();
+        if dr == 0 || df == 0 || dr == df || dr + df == 3 {
+            break;
+        }
+    }
+    Move {
+        from,
+        to,
+        promotion: None,
+    }
+}
+
 fn play_game(color: Color, game_id: i32) -> Result<(), api::Error> {
     let mut halfmove_number = match color {
         Color::White => 0,
@@ -36,31 +65,11 @@ fn play_game(color: Color, game_id: i32) -> Result<(), api::Error> {
             dbg!(state.render());
 
             api::sense(game_id, 0).expect("TODO");
-            let mut from: i32;
-            loop {
-                from = rand::thread_rng().gen_range(0, 64);
-                let p = state.pieces.0[from as usize];
-                if p.is_some() && p.unwrap().color == color {
-                    break;
-                }
-            }
-            let mut to: i32;
-            loop {
-                to = rand::thread_rng().gen_range(0, 64);
-                let p = state.pieces.0[to as usize];
-                if p.is_some() && p.unwrap().color == color {
-                    continue;
-                }
-                let dr = (from / 8 - to / 8).abs();
-                let df = (from % 8 - to % 8).abs();
-                if dr == 0 || df == 0 || dr == df || dr + df == 3 {
-                    break;
-                }
-            }
-            let my_move = Move {
-                from,
-                to,
-                promotion: None,
+            let my_move = if rand::thread_rng().gen_bool(0.5) {
+                random_move(&state)
+            } else {
+                let all_moves = state.all_sensible_requested_moves();
+                all_moves[rand::thread_rng().gen_range(0, all_moves.len())]
             };
             let mr = api::make_move(game_id, my_move.to_uci()).expect("TODO");
             state.make_move(mr.taken.map(|m| Move::from_uci(&m)));
