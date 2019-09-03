@@ -3,7 +3,7 @@ use std::io::Read;
 use std::sync::Mutex;
 use rusqlite::{Connection, params};
 use rbc::api;
-use rbc::game::{STARTING_FEN, Piece, BoardState, Move, square_to_uci};
+use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
 
 fn check_game(h: api::GameHistory, log: &Mutex<String>) {
     for (i, m) in h.moves.iter().enumerate() {
@@ -18,16 +18,7 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             Move::from_uci(q);
         }
         let mut state = before;
-
-        for rank in (0..8).rev() {
-            for file in 0..8 {
-                write!(log.lock().unwrap(),
-                    " {}", state.pieces.0[file + 8 * rank].map_or('.', Piece::to_char)
-                ).unwrap();
-            }
-            writeln!(log.lock().unwrap()).unwrap();
-        }
-
+        writeln!(log.lock().unwrap(), "{:#?}", state.render()).unwrap();
         if let Some(ep) = state.en_passant_square {
             writeln!(log.lock().unwrap(),
                 "en passant square: {}", square_to_uci(ep)
@@ -46,6 +37,44 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             state.en_passant_square = None;
         }
         assert_eq!(state, after);
+    }
+
+    for (mut i, &color) in [Color::White, Color::Black].iter().enumerate() {
+        writeln!(log.lock().unwrap(), "{:?} PoV:", color).unwrap();
+        let mut state: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
+        state.fog_of_war(color);
+
+        while i < h.moves.len() {
+            if i > 0 {
+                writeln!(log.lock().unwrap(),
+                    "opp move: {}",
+                    h.moves[i - 1].taken_move.as_ref().map_or("--", String::as_ref),
+                ).unwrap();
+                state.make_move_under_fog(h.moves[i - 1].capture_square);
+            }
+
+            writeln!(log.lock().unwrap(), "{:#?}", state.render()).unwrap();
+
+            let m = &h.moves[i];
+            let mut before: BoardState = fen::BoardState::from_fen(&m.fen_before).unwrap().into();
+            let mut after: BoardState = fen::BoardState::from_fen(&m.fen_after).unwrap().into();
+            before.fog_of_war(color);
+            after.fog_of_war(color);
+            assert_eq!(state, before);
+
+            writeln!(log.lock().unwrap(),
+                "my move:  {}",
+                m.taken_move.as_ref().map_or("--", String::as_ref),
+            ).unwrap();
+
+            let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
+            state.make_move(m);
+            state.fog_of_war(color);
+
+            assert_eq!(state, after);
+
+            i += 2;
+        }
     }
 }
 

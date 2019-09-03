@@ -58,6 +58,15 @@ pub enum Color {
     Black,
 }
 
+impl Color {
+    pub fn opposite(self) -> Color {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+}
+
 impl From<fen::Color> for Color {
     fn from(c: fen::Color) -> Color {
         match c {
@@ -148,6 +157,76 @@ impl From<fen::BoardState> for BoardState {
 }
 
 impl BoardState {
+    pub fn render(&self) -> Vec<String> {
+        let mut result = Vec::new();
+        result.push(format!("{:?} to move", self.side_to_play));
+        for rank in (0..8).rev() {
+            let mut line = (rank + 1).to_string();
+            for file in 0..8 {
+                line.push(' ');
+                line.push(self.pieces.0[file + 8 * rank].map_or('.', Piece::to_char));
+            }
+            result.push(line);
+        }
+        result.push("  a b c d e f g h".to_owned());
+
+        result
+    }
+    pub fn fog_of_war(&mut self, color: Color) {
+        for p in self.pieces.0.iter_mut() {
+            if p.is_some() && p.unwrap().color != color {
+                *p = None;
+            }
+        }
+        self.en_passant_square = None;
+        self.halfmove_clock = -1;
+        self.fullmove_number = -1;
+        match color {
+            Color::White => {
+                self.black_can_oo = true;
+                self.black_can_ooo = true;
+            }
+            Color::Black => {
+                self.white_can_oo = true;
+                self.white_can_ooo = true;
+            }
+        }
+    }
+
+    pub fn make_move_under_fog(&mut self, capture_square: Option<i32>) {
+        self.side_to_play = self.side_to_play.opposite();
+        if let Some(p) = capture_square {
+            match self.side_to_play {
+                Color::White => {
+                    if p == 0 {
+                        self.white_can_ooo = false;
+                    }
+                    if p == 7 {
+                        self.white_can_oo = false;
+                    }
+                    if p == 4 {
+                        self.white_can_ooo = false;
+                        self.white_can_oo = false;
+                    }
+                }
+                Color::Black => {
+                    if p == 56 {
+                        self.black_can_ooo = false;
+                    }
+                    if p == 63 {
+                        self.black_can_oo = false;
+                    }
+                    if p == 60 {
+                        self.black_can_ooo = false;
+                        self.black_can_oo = false;
+                    }
+                }
+            }
+            let p = self.pieces.0[p as usize].take();
+            assert_eq!(p.unwrap().color, self.side_to_play);
+        }
+    }
+
     #[allow(clippy::cognitive_complexity)]
     pub fn make_move(&mut self, m: Option<Move>) {
         self.side_to_play = match self.side_to_play {
@@ -274,7 +353,7 @@ impl BoardState {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Move {
     pub from: i32,
     pub to: i32,
