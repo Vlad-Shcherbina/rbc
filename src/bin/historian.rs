@@ -1,11 +1,10 @@
-use std::fmt::Write;
 use std::io::Read;
-use std::sync::Mutex;
+use log::{info, error};
 use rusqlite::{Connection, params};
 use rbc::api;
 use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
 
-fn check_game(h: api::GameHistory, log: &Mutex<String>) {
+fn check_game(h: api::GameHistory) {
     for (i, m) in h.moves.iter().enumerate() {
         if i == 0 {
             assert_eq!(m.fen_before, STARTING_FEN);
@@ -18,22 +17,20 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             Move::from_uci(q);
         }
         let mut state = before;
-        writeln!(log.lock().unwrap(), "{:#?}", state.render()).unwrap();
+        info!("{:#?}", state.render());
         if let Some(ep) = state.en_passant_square {
-            writeln!(log.lock().unwrap(),
-                "en passant square: {}", square_to_uci(ep)
-            ).unwrap();
+            info!("en passant square: {}", square_to_uci(ep));
         }
-        writeln!(log.lock().unwrap(), "sense: {:?} -> {:?}", m.sense, m.sense_result).unwrap();
+        info!("sense: {:?} -> {:?}", m.sense, m.sense_result);
         match m.sense {
             Some(s) => assert_eq!(m.sense_result, state.sense(s)),
             None => assert!(m.sense_result.is_empty()),
         }
-        writeln!(log.lock().unwrap(),
+        info!(
             "{:?} {}",
             state.side_to_play,
             m.taken_move.as_ref().map_or("--", String::as_ref),
-        ).unwrap();
+        );
         let taken_move = m.taken_move.as_ref().map(|s| Move::from_uci(s));
         let capture_square = state.make_move(taken_move);
         assert_eq!(capture_square, m.capture_square);
@@ -46,16 +43,14 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
     }
 
     for (mut i, &color) in [Color::White, Color::Black].iter().enumerate() {
-        writeln!(log.lock().unwrap(), "{:?} PoV:", color).unwrap();
+        info!("{:?} PoV:", color);
         let mut state: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
         state.fog_of_war(color);
 
         while i < h.moves.len() {
             if i > 0 {
-                writeln!(log.lock().unwrap(),
-                    "opp move: {}",
-                    h.moves[i - 1].taken_move.as_ref().map_or("--", String::as_ref),
-                ).unwrap();
+                info!("opp move: {}",
+                    h.moves[i - 1].taken_move.as_ref().map_or("--", String::as_ref));
                 state.make_move_under_fog(h.moves[i - 1].capture_square);
             }
 
@@ -63,25 +58,21 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             let mut before: BoardState = fen::BoardState::from_fen(&m.fen_before).unwrap().into();
             let mut after: BoardState = fen::BoardState::from_fen(&m.fen_after).unwrap().into();
             let actual_state = before.clone();
-            writeln!(log.lock().unwrap(), "{:#?}", actual_state.render()).unwrap();
+            info!("{:#?}", actual_state.render());
             before.fog_of_war(color);
             after.fog_of_war(color);
             assert_eq!(state, before);
 
-            writeln!(log.lock().unwrap(),
-                "my move (requested): {}",
-                m.requested_move.as_ref().map_or("--", String::as_ref),
-            ).unwrap();
+            info!("my move (requested): {}",
+                m.requested_move.as_ref().map_or("--", String::as_ref));
 
             let requested = m.requested_move.as_ref().map(|s| Move::from_uci(s));
             if let Some(m) = &requested {
                 let all_moves = state.all_sensible_requested_moves();
                 assert!(all_moves.contains(m));
             }
-            writeln!(log.lock().unwrap(),
-                "my move (taken):     {}",
-                m.taken_move.as_ref().map_or("--", String::as_ref),
-            ).unwrap();
+            info!("my move (taken):     {}",
+                m.taken_move.as_ref().map_or("--", String::as_ref));
 
             let taken = m.taken_move.as_ref().map(|s| Move::from_uci(s));
 
@@ -101,7 +92,8 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
 }
 
 fn main() {
-    env_logger::init();
+    let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
+    log::set_max_level(log::LevelFilter::Info);
 
     let conn = Connection::open("game_log.db").unwrap();
 
@@ -132,7 +124,7 @@ fn main() {
         let data: &[u8] = row.get_raw(2).as_blob().unwrap();
         if [15804, 15931, 15330, 15823, 15829].contains(&game_id) {
             // TODO
-            println!("skipping anomalies {}", game_id);
+            log::warn!("skipping anomalies {}", game_id);
             return Ok(());
         }
 
@@ -145,16 +137,18 @@ fn main() {
         let h: api::GameHistoryResponse = serde_json::from_str(&h).unwrap();
         let h: api::GameHistory = h.game_history.into();
 
-        let log = Mutex::new(String::new());
-        match std::panic::catch_unwind(|| { check_game(h, &log); }) {
-            Ok(()) => {},
-            Err(_) => {
-                dbg!(game_id);
-                let log = log.into_inner().unwrap();
-                let start = if log.len() < 1000 { 0 } else { log.len() - 1000 };
-                println!("{}", &log[start..]);
-                std::process::exit(1);
-            }
+        let (lg, res) = logger.with(rbc::logger::StringLogger::new(), || {
+            std::panic::catch_unwind(|| { check_game(h); })
+        });
+        if res.is_err() {
+            error!("game_id = {}", game_id);
+            error!("-- 8< -- inner log --------");
+            error!("...");
+            let lg = lg.into_string();
+            let start = if lg.len() < 1000 { 0 } else { lg.len() - 1000 };
+            error!("{}", &lg[start..]);
+            error!("-------- inner log -- >8 --");
+            std::process::exit(1);
         }
 
         Ok(())
