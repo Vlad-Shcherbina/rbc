@@ -53,11 +53,11 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
                 state.make_move_under_fog(h.moves[i - 1].capture_square);
             }
 
-            writeln!(log.lock().unwrap(), "{:#?}", state.render()).unwrap();
-
             let m = &h.moves[i];
             let mut before: BoardState = fen::BoardState::from_fen(&m.fen_before).unwrap().into();
             let mut after: BoardState = fen::BoardState::from_fen(&m.fen_after).unwrap().into();
+            let actual_state = before.clone();
+            writeln!(log.lock().unwrap(), "{:#?}", actual_state.render()).unwrap();
             before.fog_of_war(color);
             after.fog_of_war(color);
             assert_eq!(state, before);
@@ -66,17 +66,25 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
                 "my move (requested): {}",
                 m.requested_move.as_ref().map_or("--", String::as_ref),
             ).unwrap();
-            if let Some(m) = m.requested_move.as_ref() {
+
+            let requested = m.requested_move.as_ref().map(|s| Move::from_uci(s));
+            if let Some(m) = &requested {
                 let all_moves = state.all_sensible_requested_moves();
-                assert!(all_moves.contains(&Move::from_uci(m)));
+                assert!(all_moves.contains(m));
             }
             writeln!(log.lock().unwrap(),
                 "my move (taken):     {}",
                 m.taken_move.as_ref().map_or("--", String::as_ref),
             ).unwrap();
 
-            let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
-            state.make_move(m);
+            let taken = m.taken_move.as_ref().map(|s| Move::from_uci(s));
+
+            let predicted_taken =
+                requested.map(|m| actual_state.requested_to_taken(m))
+                .and_then(std::convert::identity);  // flatten
+            assert_eq!(predicted_taken, taken);
+
+            state.make_move(taken);
             state.fog_of_war(color);
 
             assert_eq!(state, after);

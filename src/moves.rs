@@ -304,4 +304,92 @@ impl BoardState {
         }
         result
     }
+
+    pub fn requested_to_taken(&self, m: Move) -> Option<Move> {
+        let p = self.pieces.0[m.from as usize].unwrap();
+        assert_eq!(p.color, self.side_to_play);
+        match p.kind {
+            PieceKind::Pawn => {
+                let dr = match self.side_to_play {
+                    Color::White => 1,
+                    Color::Black => -1,
+                };
+                if m.to == m.from + 8 * dr {
+                    if self.pieces.0[m.to as usize].is_none() {
+                        if m.to < 8 || m.to >= 56 {
+                           Some(Move {
+                                from: m.from,
+                                to: m.to,
+                                promotion: Some(m.promotion.unwrap_or(PieceKind::Queen)),
+                            })
+                        } else {
+                            Some(m)
+                        }
+                    } else {
+                        None
+                    }
+                } else if m.to == m.from + 16 * dr {
+                    if self.pieces.0[(m.from + 8 * dr) as usize].is_some() {
+                        None
+                    } else if self.pieces.0[m.to as usize].is_some() {
+                        Some(Move { from: m.from, to: m.from + 8 * dr, promotion: None })
+                    } else {
+                        Some(m)
+                    }
+                } else if self.en_passant_square == Some(m.to) {
+                    Some(m)
+                } else if self.pieces.0[m.to as usize].is_some() {
+                    if m.to < 8 || m.to >= 56 {
+                        Some(Move {
+                            from: m.from,
+                            to: m.to,
+                            promotion: Some(m.promotion.unwrap_or(PieceKind::Queen)),
+                        })
+                    } else {
+                        Some(m)
+                    }
+                } else {
+                    None
+                }
+            }
+            PieceKind::Knight => Some(m),
+            PieceKind::King => {
+                if m.to == m.from - 2 {
+                    if self.pieces.0[(m.from - 1) as usize].is_none() &&
+                       self.pieces.0[(m.from - 2) as usize].is_none() &&
+                       self.pieces.0[(m.from - 3) as usize].is_none() {
+                        Some(m)
+                    } else {
+                        None
+                    }
+                } else if m.to == m.from + 2 {
+                    if self.pieces.0[(m.from + 1) as usize].is_none() &&
+                       self.pieces .0[(m.from + 2) as usize].is_none() {
+                        Some(m)
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(m)
+                }
+            }
+            PieceKind::Bishop |
+            PieceKind::Rook |
+            PieceKind::Queen => {
+                let mut r = m.from / 8;
+                let mut f = m.from % 8;
+                let dr = (m.to / 8 - r).signum();
+                let df = (m.to % 8 - f).signum();
+                let to = loop {
+                    r += dr;
+                    f += df;
+                    let to = r * 8 + f;
+                    if to == m.to || self.pieces.0[to as usize].is_some() {
+                        break to;
+                    }
+                };
+                Some(Move { from: m.from, to, promotion: None })
+            }
+        }
+    }
 }

@@ -122,7 +122,7 @@ impl From<fen::Piece> for Piece {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BoardState {
     pub pieces: crate::derive_wrapper::Wrapper<[Option<Piece>; 64]>,
     pub side_to_play: Color,
