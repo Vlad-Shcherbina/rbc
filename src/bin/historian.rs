@@ -24,6 +24,11 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
                 "en passant square: {}", square_to_uci(ep)
             ).unwrap();
         }
+        writeln!(log.lock().unwrap(), "sense: {:?} -> {:?}", m.sense, m.sense_result).unwrap();
+        match m.sense {
+            Some(s) => assert_eq!(m.sense_result, state.sense(s)),
+            None => assert!(m.sense_result.is_empty()),
+        }
         writeln!(log.lock().unwrap(),
             "{:?} {}",
             state.side_to_play,
@@ -125,7 +130,7 @@ fn main() {
         let game_id: i32 = row.get(0)?;
         let dict_id: i64 = row.get(1)?;
         let data: &[u8] = row.get_raw(2).as_blob().unwrap();
-        if game_id == 15804 || game_id == 15931 {
+        if [15804, 15931, 15330, 15823, 15829].contains(&game_id) {
             // TODO
             println!("skipping anomalies {}", game_id);
             return Ok(());

@@ -192,6 +192,19 @@ impl BoardState {
             }
         }
     }
+
+    pub fn sense(&mut self, p: i32) -> Vec<(i32, Option<Piece>)> {
+        let mut result = Vec::with_capacity(9);
+        let r = p / 8;
+        let f = p % 8;
+        for r in (0.max(r - 1)..=7.min(r + 1)).rev() {
+            for f in 0.max(f - 1)..=7.min(f + 1) {
+                let q = r * 8 + f;
+                result.push((q, self.pieces.0[q as usize]));
+            }
+        }
+        result
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
