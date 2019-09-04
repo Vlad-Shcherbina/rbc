@@ -44,7 +44,7 @@ impl BoardState {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub fn make_move(&mut self, m: Option<Move>) {
+    pub fn make_move(&mut self, m: Option<Move>) -> Option<i32> {
         self.side_to_play = match self.side_to_play {
             Color::White => Color::Black,
             Color::Black => { self.fullmove_number += 1; Color::White },
@@ -54,18 +54,27 @@ impl BoardState {
             Some(m) => m,
             None => {
                 self.en_passant_square = None;
-                return;
+                return None;
             }
         };
+
+        let mut capture_square = if self.pieces.0[m.to as usize].is_some() {
+            Some(m.to)
+        } else {
+            None
+        };
+
         let mut p = self.pieces.0[m.from as usize].take();
         match p {
             Some(Piece { kind: PieceKind::Pawn, ..}) => {
                 if let Some(ep) = self.en_passant_square.take() {
                     if m.to == ep {
-                        match self.side_to_play {
-                            Color::White => self.pieces.0[(ep + 8) as usize] = None,
-                            Color::Black => self.pieces.0[(ep - 8) as usize] = None,
-                        }
+                        let cap = match self.side_to_play {
+                            Color::White => ep + 8,
+                            Color::Black => ep - 8,
+                        };
+                        capture_square = Some(cap);
+                        self.pieces.0[cap as usize] = None;
                     }
                 }
 
@@ -166,6 +175,7 @@ impl BoardState {
         if m.to == 63 || m.from == 63 {
             self.black_can_oo = false;
         }
+        capture_square
     }
 
     #[allow(clippy::cognitive_complexity)]

@@ -29,8 +29,9 @@ fn check_game(h: api::GameHistory, log: &Mutex<String>) {
             state.side_to_play,
             m.taken_move.as_ref().map_or("--", String::as_ref),
         ).unwrap();
-        let m = m.taken_move.as_ref().map(|s| Move::from_uci(s));
-        state.make_move(m);
+        let taken_move = m.taken_move.as_ref().map(|s| Move::from_uci(s));
+        let capture_square = state.make_move(taken_move);
+        assert_eq!(capture_square, m.capture_square);
         if state.en_passant_square.is_some() &&
            after.en_passant_square.is_none() {
             // their bug
