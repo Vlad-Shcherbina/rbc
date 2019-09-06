@@ -141,14 +141,13 @@ fn main() {
 
         let forgiving_en_passant = game_id <= 18431;
 
-        let (lg, res) = logger.with(rbc::logger::StringLogger::new(), || {
+        let (lg, res) = logger.capture_log(|| {
             std::panic::catch_unwind(|| { check_game(h, forgiving_en_passant); })
         });
         if res.is_err() {
             error!("game_id = {}", game_id);
             error!("-- 8< -- inner log --------");
             error!("...");
-            let lg = lg.into_string();
             let start = if lg.len() < 1000 { 0 } else { lg.len() - 1000 };
             error!("{}", &lg[start..]);
             error!("-------- inner log -- >8 --");

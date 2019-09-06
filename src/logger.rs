@@ -84,6 +84,12 @@ impl ChangeableLogger {
         let l = std::mem::replace(&mut *self.0.lock().unwrap(), old);
         (*l.into_any().downcast().unwrap(), result)
     }
+
+    pub fn capture_log<R>(&self, f: impl FnOnce() -> R) -> (String, R) {
+        let lg = StringLogger::new();
+        let (lg, result) = self.with(lg, f);
+        (lg.into_string(), result)
+    }
 }
 
 impl Log for ChangeableLogger {
