@@ -4,7 +4,7 @@ use rusqlite::{Connection, params};
 use rbc::api;
 use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
 
-fn check_game(h: api::GameHistory) {
+fn check_game(h: api::GameHistory, forgiving_en_passant: bool) {
     for (i, m) in h.moves.iter().enumerate() {
         if i == 0 {
             assert_eq!(m.fen_before, STARTING_FEN);
@@ -34,9 +34,10 @@ fn check_game(h: api::GameHistory) {
         let taken_move = m.taken_move.as_ref().map(|s| Move::from_uci(s));
         let capture_square = state.make_move(taken_move);
         assert_eq!(capture_square, m.capture_square);
-        if state.en_passant_square.is_some() &&
+        if forgiving_en_passant &&
+           state.en_passant_square.is_some() &&
            after.en_passant_square.is_none() {
-            // their bug
+            // old games had en-passant-related bug
             state.en_passant_square = None;
         }
         assert_eq!(state, after);
@@ -137,8 +138,10 @@ fn main() {
         let h: api::GameHistoryResponse = serde_json::from_str(&h).unwrap();
         let h: api::GameHistory = h.game_history.into();
 
+        let forgiving_en_passant = game_id <= 18431;
+
         let (lg, res) = logger.with(rbc::logger::StringLogger::new(), || {
-            std::panic::catch_unwind(|| { check_game(h); })
+            std::panic::catch_unwind(|| { check_game(h, forgiving_en_passant); })
         });
         if res.is_err() {
             error!("game_id = {}", game_id);

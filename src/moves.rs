@@ -84,30 +84,10 @@ impl BoardState {
                 self.halfmove_clock = 0;
 
                 if m.to == m.from - 16 {
-                    let file = m.to % 8;
-                    if file > 0 &&
-                       self.pieces.0[(m.from - 17) as usize] ==
-                       Some(Piece { color: Color::White, kind: PieceKind::Pawn}) {
-                        self.en_passant_square = Some(m.from - 8);
-                    }
-                    if file < 7 &&
-                       self.pieces.0[(m.from - 15) as usize] ==
-                       Some(Piece { color: Color::White, kind: PieceKind::Pawn}) {
-                        self.en_passant_square = Some(m.from - 8);
-                    }
+                    self.en_passant_square = Some(m.from - 8);
                 }
                 if m.to == m.from + 16 {
-                    let file = m.to % 8;
-                    if file > 0 &&
-                       self.pieces.0[(m.from + 15) as usize] ==
-                       Some(Piece { color: Color::Black, kind: PieceKind::Pawn}) {
-                        self.en_passant_square = Some(m.from + 8);
-                    }
-                    if file < 7 &&
-                       self.pieces.0[(m.from + 17) as usize] ==
-                       Some(Piece { color: Color::Black, kind: PieceKind::Pawn}) {
-                        self.en_passant_square = Some(m.from + 8);
-                    }
+                    self.en_passant_square = Some(m.from + 8);
                 }
             }
             Some(_) => {
