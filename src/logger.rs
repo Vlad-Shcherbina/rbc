@@ -15,7 +15,7 @@ fn level_to_char(level: Level) -> char {
 pub struct SimpleLogger;
 
 impl Log for SimpleLogger {
-    fn enabled(&self, _:  &Metadata) -> bool { true }
+    fn enabled(&self, _: &Metadata) -> bool { true }
 
     fn log(&self, record: &Record) {
         eprintln!("{} {}", level_to_char(record.level()), record.args());
@@ -24,9 +24,26 @@ impl Log for SimpleLogger {
     fn flush(&self) {}
 }
 
-// TODO: this mutex is redundant, because ChangeableLogger already has a Mutex
+pub trait MutLog: Send {
+    fn enabled(&mut self, metadata: &Metadata) -> bool;
+    fn log(&mut self, record: &Record);
+    fn flush(&mut self);
+}
+
+impl<T: Log> MutLog for T {
+    fn enabled(&mut self, metadata: &Metadata) -> bool {
+        <Self as Log>::enabled(self, metadata)
+    }
+    fn log(&mut self, record: &Record) {
+        <Self as Log>::log(self, record);
+    }
+    fn flush(&mut self) {
+        <Self as Log>::flush(self);
+    }
+}
+
 #[derive(Default)]
-pub struct StringLogger(Mutex<String>);
+pub struct StringLogger(String);
 
 impl StringLogger {
     pub fn new() -> Self {
@@ -34,34 +51,34 @@ impl StringLogger {
     }
 
     pub fn into_string(self) -> String {
-        self.0.into_inner().unwrap()
+        self.0
     }
 }
 
-impl Log for StringLogger {
-    fn enabled(&self, _: &Metadata) -> bool { true }
+impl MutLog for StringLogger {
+    fn enabled(&mut self, _: &Metadata) -> bool { true }
 
-    fn log(&self, record: &Record) {
-        self.0.lock().unwrap().push_str(&format!("{}  {}\n", level_to_char(record.level()), record.args()));
+    fn log(&mut self, record: &Record) {
+        self.0.push_str(&format!("{}  {}\n", level_to_char(record.level()), record.args()));
     }
 
-    fn flush(&self) {}
+    fn flush(&mut self) {}
 }
 
-trait AnyLog : Log {
+trait AnyMutLog : MutLog {
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
-impl<T: Log + 'static> AnyLog for T {
+impl<T: MutLog + 'static> AnyMutLog for T {
     fn into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
 }
 
-pub struct ChangeableLogger(Mutex<Box<dyn AnyLog>>);
+pub struct ChangeableLogger(Mutex<Box<dyn AnyMutLog>>);
 
 impl ChangeableLogger {
-    pub fn with<L: Log + 'static, R>(&self, logger: L, f: impl FnOnce() -> R) -> (L, R) {
+    pub fn with<L: MutLog + 'static, R>(&self, logger: L, f: impl FnOnce() -> R) -> (L, R) {
         let old = std::mem::replace(&mut *self.0.lock().unwrap(), Box::new(logger));
         let result = f();
         let l = std::mem::replace(&mut *self.0.lock().unwrap(), old);
@@ -83,7 +100,7 @@ impl Log for ChangeableLogger {
     }
 }
 
-pub fn init_changeable_logger<L: Log + 'static>(logger: L) -> &'static ChangeableLogger {
+pub fn init_changeable_logger<L: MutLog + 'static>(logger: L) -> &'static ChangeableLogger {
     let c = ChangeableLogger(Mutex::new(Box::new(logger)));
     let c = Box::new(c);
     let c = Box::leak(c);
