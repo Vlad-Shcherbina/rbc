@@ -59,6 +59,7 @@ fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
 
 #[derive(Debug)]
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TypeValue {
     #[serde(rename = "type")]
     tp: String,
@@ -67,6 +68,7 @@ pub struct TypeValue {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UsersResponse {
     usernames: Vec<String>,
 }
@@ -78,6 +80,7 @@ pub fn list_users() -> MyResult<Vec<String>> {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UsersMeResponse {
     id: i32,
     username: String,
@@ -96,12 +99,14 @@ struct UsersMeMaxGamesRequest {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ListInvitationsResponse {
     invitations: Vec<i32>,
 }
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AcceptInvitationResponse {
     game_id: i32,
 }
@@ -113,6 +118,7 @@ struct PostInvitationRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PostInvitationResponse {
     game_id: i32,
 }
@@ -138,6 +144,7 @@ pub fn post_invitation(opponent: &str, color: Color) -> MyResult<i32> {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GameStatusResponse {
     pub is_my_turn: bool,
     pub is_over: bool,
@@ -164,6 +171,7 @@ impl From<Color> for bool {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct GameColorResponse {
     color: Color,
 }
@@ -175,6 +183,7 @@ pub fn game_color(game_id: i32) -> MyResult<Color> {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct WinnerColorResponse {
     winner_color: Color,
 }
@@ -198,6 +207,7 @@ impl From<TypeValue> for WinReason {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct WinReasonResponse {
     win_reason: WinReason,
 }
@@ -209,6 +219,7 @@ pub fn win_reason(game_id: i32) -> MyResult<String> {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SecondsLeftResponse {
     seconds_left: f32,
 }
@@ -234,6 +245,7 @@ impl From<TypeValue> for Piece {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SenseResponse {
     sense_result: Vec<(i32, Option<Piece>)>,
 }
@@ -271,6 +283,7 @@ struct MoveRequest {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RawMoveResponse {
     move_result: (Option<Move>, Option<Move>, Option<i32>),  // (requested, taken, capture square)
 }
@@ -295,6 +308,7 @@ pub fn make_move(game_id: i32, m: String) -> MyResult<MoveResponse> {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct EndMoveResponse {}
 
 pub fn end_turn(game_id: i32) -> MyResult<()> {
@@ -304,6 +318,7 @@ pub fn end_turn(game_id: i32) -> MyResult<()> {
 
 #[derive(Debug)]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct OpponentMoveResultsResponse {
     opponent_move_results: Option<i32>,
 }
