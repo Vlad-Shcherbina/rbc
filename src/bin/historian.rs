@@ -116,8 +116,9 @@ fn main() {
     let mut pb = pbr::ProgressBar::new(cnt as u64);
     pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(500)));
 
-    conn.prepare(
-        &format!("SELECT game_id, dict_id, data FROM game {}", filter)).unwrap()
+    conn.prepare(&format!("
+        SELECT game_id, dict_id, data
+        FROM game {} ORDER BY game_id DESC", filter)).unwrap()
     .query_map(params![], |row| {
         pb.inc();
         let game_id: i32 = row.get(0)?;
