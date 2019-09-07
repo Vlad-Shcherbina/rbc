@@ -64,7 +64,7 @@ fn play_game(color: Color, game_id: i32) -> Result<(), api::Error> {
             }
             dbg!(state.render());
 
-            api::sense(game_id, 0).expect("TODO");
+            api::sense(game_id, rand::thread_rng().gen_range(0, 64)).expect("TODO");
             let my_move = if rand::thread_rng().gen_bool(0.5) {
                 random_move(&state)
             } else {
@@ -89,12 +89,14 @@ fn play_game(color: Color, game_id: i32) -> Result<(), api::Error> {
 
 fn main() {
     env_logger::init();
-    let mut rng = rand::thread_rng();
 
-    api::list_users().unwrap();
-
-    let color: Color = rng.gen_bool(0.5).into();
-
-    let game_id = api::post_invitation("random", color).unwrap();
-    play_game(color, game_id).unwrap();
+    loop {
+        let mut opponents = api::list_users().unwrap();
+        opponents.retain(|o| o != "DotModus_Chris");  // hangs
+        let opponent = rand::thread_rng().gen_range(0, opponents.len());
+        let opponent = &opponents[opponent];
+        let color: Color = rand::thread_rng().gen_bool(0.5).into();
+        let game_id = api::post_invitation(opponent, color).unwrap();
+        play_game(color, game_id).unwrap();
+    }
 }
