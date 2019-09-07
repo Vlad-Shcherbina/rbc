@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use log::info;
+use log::{info, error};
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 
@@ -25,15 +25,36 @@ impl<T: Into<Box<dyn std::error::Error>>> From<T> for Error {
 
 type MyResult<T> = Result<T, Error>;
 
+fn retry_request(make_req: impl Fn() -> minreq::Request) -> MyResult<minreq::Response> {
+    let mut attempts = 5;
+    loop {
+        let e = match make_req().send() {
+            Ok(resp) => {
+                info!("got {} {}", resp.status_code, resp.body.trim_end());
+                match resp.status_code {
+                    200 => return Ok(resp),
+                    400..=499 => return Err(Error::HttpError(resp.status_code)),
+                    _ => Error::HttpError(resp.status_code)
+                }
+            }
+            Err(e) => e.into()
+        };
+        attempts -= 1;
+        if attempts == 0 {
+            return Err(e);
+        }
+        error!("{:?}", e);
+        info!("retrying...");
+        std::thread::sleep(std::time::Duration::from_secs(5));
+    }
+}
+
 fn make_get_request_raw(addr: &str) -> MyResult<String> {
     info!("GET {}", addr);
-    let req = minreq::get(format!("{}{}", SERVER_URL, addr))
-        .with_header("Authorization", AUTH);
-    let resp = req.send()?;
-    info!("got {} {}", resp.status_code, resp.body.trim_end());
-    if resp.status_code != 200 {
-        return Err(Error::HttpError(resp.status_code));
-    }
+    let resp = retry_request(||
+        minreq::get(format!("{}{}", SERVER_URL, addr))
+        .with_header("Authorization", AUTH)
+    )?;
     Ok(resp.body)
 }
 
@@ -44,16 +65,13 @@ fn make_get_request<Response: DeserializeOwned>(addr: &str) -> MyResult<Response
 fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
     addr: &str, req: &Request) -> MyResult<Response>
 {
-    let payload = serde_json::to_string(req).expect("TODO");
+    let payload = serde_json::to_string(req).unwrap();
     info!("POST {}, req: {}", addr, payload);
-    let req = minreq::post(format!("{}{}", SERVER_URL, addr))
+    let resp = retry_request(||
+        minreq::post(format!("{}{}", SERVER_URL, addr))
         .with_header("Authorization", AUTH)
-        .with_body(payload);
-    let resp = req.send()?;
-    info!("got  {} {}", resp.status_code, resp.body.trim_end());
-    if resp.status_code != 200 {
-        return Err(Error::HttpError(resp.status_code));
-    }
+        .with_body(&payload)
+    )?;
     Ok(serde_json::from_str(&resp.body)?)
 }
 
