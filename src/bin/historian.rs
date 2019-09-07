@@ -2,9 +2,10 @@ use std::io::Read;
 use log::{info, error};
 use rusqlite::{Connection, params};
 use rbc::api;
+use rbc::history::GameHistory;
 use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
 
-fn check_game(h: api::GameHistory, forgiving_en_passant: bool) {
+fn check_game(h: GameHistory, forgiving_en_passant: bool) {
     for (i, m) in h.moves.iter().enumerate() {
         if i == 0 {
             assert_eq!(m.fen_before, STARTING_FEN);
@@ -137,7 +138,7 @@ fn main() {
         dec.read_to_string(&mut h).unwrap();
 
         let h: api::GameHistoryResponse = serde_json::from_str(&h).unwrap();
-        let h: api::GameHistory = h.game_history.into();
+        let h: GameHistory = h.game_history.into();
 
         let forgiving_en_passant = game_id <= 18431;
 
