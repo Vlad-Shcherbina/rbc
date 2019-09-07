@@ -1,7 +1,5 @@
-use std::io::Read;
 use log::{info, error};
 use rusqlite::{Connection, params};
-use rbc::api;
 use rbc::history::GameHistory;
 use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
 
@@ -99,14 +97,7 @@ fn main() {
 
     let conn = Connection::open("game_log.db").unwrap();
 
-    let dicts: Result<std::collections::HashMap<_, _>, _> =
-        conn.prepare("SELECT id, data FROM dictionary").unwrap()
-        .query_map(params![], |row| {
-            let id: i64 = row.get(0)?;
-            let data: Vec<u8> = row.get(1)?;
-            Ok((id, data))
-        }).unwrap().collect();
-    let dicts = dicts.unwrap();
+    let dicts = rbc::history_db::get_dicts(&conn);
 
     let filter = "";
     // let filter = "WHERE game_id > 17000";
@@ -120,25 +111,11 @@ fn main() {
     conn.prepare(&format!("
         SELECT game_id, dict_id, data
         FROM game {} ORDER BY game_id DESC", filter)).unwrap()
-    .query_map(params![], |row| {
+    .query_map(params![], |row| rbc::history_db::game_query_map_fn(&dicts, row))
+    .unwrap()
+    .filter_map(Result::unwrap)
+    .for_each(|(game_id, h)| {
         pb.inc();
-        let game_id: i32 = row.get(0)?;
-        let dict_id: i64 = row.get(1)?;
-        let data: &[u8] = row.get_raw(2).as_blob().unwrap();
-        if [15804, 15931, 15330, 15823, 15829].contains(&game_id) {
-            // TODO
-            log::warn!("skipping anomalies {}", game_id);
-            return Ok(());
-        }
-
-        let mut dec = zstd::Decoder::with_dictionary(
-            std::io::BufReader::new(data),
-            &dicts[&dict_id]).unwrap();
-        let mut h = String::new();
-        dec.read_to_string(&mut h).unwrap();
-
-        let h: api::GameHistoryResponse = serde_json::from_str(&h).unwrap();
-        let h: GameHistory = h.game_history.into();
 
         let forgiving_en_passant = game_id <= 18431;
 
@@ -154,10 +131,7 @@ fn main() {
             error!("-------- inner log -- >8 --");
             std::process::exit(1);
         }
-
-        Ok(())
-    }).unwrap()
-    .collect::<Result<(), _>>().unwrap();
+    });
     pb.finish();
     println!();
 }

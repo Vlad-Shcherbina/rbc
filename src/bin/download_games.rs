@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use rand::Rng;
 use rayon::prelude::*;
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{Connection, params};
 use rbc::api;
 
 fn build_dict(game_ids: &[i32]) -> Vec<u8> {
@@ -31,53 +31,23 @@ fn main() {
     env_logger::init();
     rayon::ThreadPoolBuilder::new().num_threads(20).build_global().unwrap();
 
-    let max_game_id = 18199;
-
     let mut conn = Connection::open("game_log.db").unwrap();
-    conn.execute_batch("
-    CREATE TABLE IF NOT EXISTS
-    dictionary (
-        id INTEGER PRIMARY KEY,
-        data BLOB NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS
-    game (
-        game_id INTEGER PRIMARY KEY,
-        white_name TEXT,
-        black_name TEXT,
-        winner_color TEXT,  -- 'White', 'Black', NULL for draw
-        win_reason TEXT,
-        num_moves INTEGER,
-        dict_id INTEGER,
-        data BLOB,
+    rbc::history_db::init_tables(&conn);
 
-        time_created INTEGER,
-        time_finished INTEGER,
-
-        FOREIGN KEY (dict_id) REFERENCES dictionary
-    );
-    ").unwrap();
-
-    let mut q = conn.prepare("SELECT id, data FROM dictionary LIMIT 1").unwrap();
-    let r = q.query_row(params![], |row| {
-        let id: i64 = row.get(0)?;
-        let data: Vec<u8> = row.get(1)?;
-        Ok((id, data))
-    }).optional().unwrap();
-    drop(q);
-    let (dict_id, dict) = r.unwrap_or_else(|| {
+    let mut dicts = rbc::history_db::get_dicts(&conn);
+    if dicts.is_empty() {
         let mut rng = rand::thread_rng();
-        let game_ids = (1..max_game_id).filter(|_| { rng.gen_bool(0.05)});
+        let game_ids = (1..18199).filter(|_| { rng.gen_bool(0.05)});
         let game_ids: Vec<_> = game_ids.collect();
         let dict = build_dict(&game_ids);
 
         let mut q = conn.prepare("INSERT INTO dictionary(data) VALUES (?) ").unwrap();
         let dict_id = q.insert(params![&dict]).unwrap();
-        (dict_id, dict)
-    });
-    dbg!((dict_id, dict.len()));
+        dicts.insert(dict_id, dict);
+    }
+    let (&dict_id, dict) = dicts.iter().next().unwrap();
 
-    let game_ids = 12000..16000;
+    let game_ids = 18400..18500;
     let pb = Arc::new(Mutex::new(pbr::ProgressBar::new(game_ids.len() as u64)));
     pb.lock().unwrap().message("games to download  ");
 
