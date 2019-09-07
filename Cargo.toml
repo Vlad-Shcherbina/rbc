@@ -15,8 +15,7 @@ ctrlc = "*"
 fen = "*"
 rusqlite = { version = "*", features = ["bundled"] }
 zstd = { version = "*", default-features = false }
-miniz_oxide = "*"
-rayon = "*"
+rayon = { version = "*", optional = true }
 rand = "*"
 pbr = "*"
 
@@ -25,3 +24,8 @@ pbr = "*"
 # is released
 [patch.crates-io]
 minreq = { git = "https://github.com/neonmoe/minreq.git" }
+
+[[bin]]
+name = "download_games"
+path = "src/bin/download_games.rs"
+required-features = ["rayon"]
