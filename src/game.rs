@@ -36,7 +36,7 @@ impl PieceKind {
         }
     }
 
-    pub fn to_int(self) -> i32 {
+    pub fn to_int(self) -> u32 {
         match self {
             PieceKind::Pawn => 1,
             PieceKind::Knight => 2,
@@ -44,6 +44,18 @@ impl PieceKind {
             PieceKind::Rook => 4,
             PieceKind::Queen => 5,
             PieceKind::King => 6,
+        }
+    }
+
+    pub fn from_int(i: u32) -> PieceKind {
+        match i {
+            1 => PieceKind::Pawn,
+            2 => PieceKind::Knight,
+            3 => PieceKind::Bishop,
+            4 => PieceKind::Rook,
+            5 => PieceKind::Queen,
+            6 => PieceKind::King,
+            _ => unreachable!(),
         }
     }
 }
@@ -115,6 +127,32 @@ impl Piece {
             Color::Black => self.kind.to_char(),
             Color::White => self.kind.to_char().to_ascii_uppercase(),
         }
+    }
+
+    pub fn to_int(this: Option<Piece>) -> u32 {
+        match this {
+            None => 0,
+            Some(Piece { kind, color }) => {
+                kind.to_int() * 2 - 1 + match color {
+                    Color::White => 0,
+                    Color::Black => 1,
+                }
+            }
+        }
+    }
+
+    pub fn from_int(x: u32) -> Option<Piece> {
+        if x == 0 {
+            return None;
+        }
+        Some(Piece {
+            color: match (x + 1) % 2 {
+                0 => Color::White,
+                1 => Color::Black,
+                _ => unreachable!(),
+            },
+            kind: PieceKind::from_int((x + 1) / 2),
+        })
     }
 }
 
@@ -273,6 +311,13 @@ mod tests {
     fn test_piece_to_from_char() {
         for c in "pnbrqkPNBRQK".chars() {
             assert_eq!(Piece::from_char(c).to_char(), c);
+        }
+    }
+
+    #[test]
+    fn test_piece_to_from_int() {
+        for i in 0..13 {
+            assert_eq!(i, Piece::to_int(Piece::from_int(i)));
         }
     }
 

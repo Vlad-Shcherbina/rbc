@@ -70,9 +70,9 @@ impl Infoset {
         let file = sense % 8;
         assert!(1 <= rank && rank < 7);
         assert!(1 <= file && file < 7);
-        let mut cnt = HashMap::<i32, i32>::new();
+        let mut cnt = HashMap::<u32, i32>::new();
         for s in &self.possible_states {
-            let mut fingerprint = 0i32;
+            let mut fingerprint = 0u32;
             for r in rank-1..=rank+1 {
                 for f in file-1..=file+1 {
                     let sq = (r * 8 + f) as usize;
@@ -116,15 +116,20 @@ impl Infoset {
 
     #[inline(never)]
     fn render(&self) -> Vec<String> {
+        let mut piece_sets = vec![0u16; 64];
+        for s in &self.possible_states {
+            for i in 0..64 {
+                piece_sets[i] |= 1u16 << Piece::to_int(s.pieces.0[i]);
+            }
+        }
         let mut result = Vec::new();
         for rank in (0..8).rev() {
             let mut line = format!("{}  ", rank + 1);
             for file in 0..8 {
-                let mut ps = HashSet::new();
-                for s in &self.possible_states {
-                    ps.insert(s.pieces.0[rank * 8 + file]);
-                }
-                let mut ps: String = ps.into_iter().map(|p| p.map_or('.', Piece::to_char)).collect();
+                let mut ps: String = (0..13)
+                    .filter(|i| piece_sets[rank * 8 + file] & (1u16 << i) != 0)
+                    .map(|i| Piece::from_int(i).map_or('.', Piece::to_char))
+                    .collect();
                 if ps.len() == 7 {
                     ps = "???".to_string();
                 }
