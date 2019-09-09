@@ -75,9 +75,9 @@ impl Infoset {
             let mut fingerprint = 0u32;
             for r in rank-1..=rank+1 {
                 for f in file-1..=file+1 {
-                    let sq = (r * 8 + f) as usize;
+                    let sq = r * 8 + f;
                     fingerprint *= 7;
-                    fingerprint += s.pieces.0[sq].map_or(0, |p| p.kind.to_int());
+                    fingerprint += s.get_piece(sq).map_or(0, |p| p.kind.to_int());
                 }
             }
             *cnt.entry(fingerprint).or_default() += 1;
@@ -119,7 +119,7 @@ impl Infoset {
         let mut piece_sets = vec![0u16; 64];
         for s in &self.possible_states {
             for i in 0..64 {
-                piece_sets[i] |= 1u16 << Piece::to_int(s.pieces.0[i]);
+                piece_sets[i] |= 1u16 << Piece::to_int(s.get_piece(i as i32));
             }
         }
         let mut result = Vec::new();

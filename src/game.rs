@@ -173,7 +173,7 @@ impl From<fen::Piece> for Piece {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoardState {
-    pub pieces: crate::derive_wrapper::Wrapper<[Option<Piece>; 64]>,
+    pieces: crate::derive_wrapper::Wrapper<[Option<Piece>; 64]>,
     pub side_to_play: Color,
     pub white_can_oo: bool,
     pub white_can_ooo: bool,
@@ -206,6 +206,14 @@ impl From<fen::BoardState> for BoardState {
 }
 
 impl BoardState {
+    pub fn get_piece(&self, i: i32) -> Option<Piece> {
+        self.pieces.0[i as usize]
+    }
+
+    pub fn replace_piece(&mut self, i: i32, new_piece: Option<Piece>) -> Option<Piece> {
+        std::mem::replace(&mut self.pieces.0[i as usize], new_piece)
+    }
+
     pub fn render(&self) -> Vec<String> {
         let mut result = Vec::new();
         result.push(format!("{:?} to move", self.side_to_play));
@@ -213,7 +221,7 @@ impl BoardState {
             let mut line = (rank + 1).to_string();
             for file in 0..8 {
                 line.push(' ');
-                line.push(self.pieces.0[file + 8 * rank].map_or('.', Piece::to_char));
+                line.push(self.get_piece(file + 8 * rank).map_or('.', Piece::to_char));
             }
             result.push(line);
         }
@@ -222,9 +230,10 @@ impl BoardState {
         result
     }
     pub fn fog_of_war(&mut self, color: Color) {
-        for p in self.pieces.0.iter_mut() {
+        for sq in 0..64 {
+            let p = self.get_piece(sq);
             if p.is_some() && p.unwrap().color != color {
-                *p = None;
+                self.replace_piece(sq, None);
             }
         }
         self.en_passant_square = None;
@@ -249,7 +258,7 @@ impl BoardState {
         for r in (0.max(r - 1)..=7.min(r + 1)).rev() {
             for f in 0.max(f - 1)..=7.min(f + 1) {
                 let q = r * 8 + f;
-                result.push((q, self.pieces.0[q as usize]));
+                result.push((q, self.get_piece(q)));
             }
         }
         result

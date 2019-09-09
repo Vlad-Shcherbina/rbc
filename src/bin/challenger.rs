@@ -7,7 +7,7 @@ fn random_move(state: &BoardState) -> Move {
     let mut from: i32;
     loop {
         from = rand::thread_rng().gen_range(0, 64);
-        let p = state.pieces.0[from as usize];
+        let p = state.get_piece(from);
         if p.is_some() && p.unwrap().color == state.side_to_play {
             break;
         }
@@ -15,7 +15,7 @@ fn random_move(state: &BoardState) -> Move {
     let mut to: i32;
     loop {
         to = rand::thread_rng().gen_range(0, 64);
-        let p = state.pieces.0[to as usize];
+        let p = state.get_piece(to);
         if p.is_some() && p.unwrap().color == state.side_to_play {
             continue;
         }
