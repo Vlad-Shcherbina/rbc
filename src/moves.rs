@@ -9,6 +9,7 @@ const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
 ];
 
 impl BoardState {
+    #[inline(never)]
     pub fn make_move_under_fog(&mut self, capture_square: Option<i32>) {
         self.side_to_play = self.side_to_play.opposite();
         if let Some(p) = capture_square {
@@ -43,6 +44,7 @@ impl BoardState {
         }
     }
 
+    #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
     pub fn make_move(&mut self, m: Option<Move>) -> Option<i32> {
         self.side_to_play = match self.side_to_play {
@@ -158,6 +160,7 @@ impl BoardState {
         capture_square
     }
 
+    #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
     pub fn all_sensible_requested_moves(&self) -> Vec<Move> {
         let mut result = Vec::new();
@@ -295,6 +298,7 @@ impl BoardState {
         result
     }
 
+    #[inline(never)]
     pub fn requested_to_taken(&self, m: Move) -> Option<Move> {
         let p = self.pieces.0[m.from as usize].unwrap();
         assert_eq!(p.color, self.side_to_play);
@@ -383,6 +387,7 @@ impl BoardState {
         }
     }
 
+    #[inline(never)]
     pub fn all_moves(&self) -> Vec<Move> {
         // TODO: inefficient
         let mut fog_state = self.clone();

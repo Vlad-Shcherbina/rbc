@@ -10,12 +10,14 @@ struct Infoset {
     possible_states: Vec<BoardState>,
 }
 
+#[inline(never)]
 fn deduplicate(xs: &mut Vec<impl Eq + std::hash::Hash>) {
     let seen: HashSet<_> = xs.drain(..).collect();
     *xs = seen.into_iter().collect();
 }
 
 impl Infoset {
+    #[inline(never)]
     fn new(color: Color) -> Infoset {
         let start_state: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
         let mut fog_state = start_state.clone();
@@ -27,6 +29,7 @@ impl Infoset {
         }
     }
 
+    #[inline(never)]
     fn opponent_move(&mut self, capture_square: Option<i32>) {
         assert!(self.fog_state.side_to_play != self.color);
         for s in &self.possible_states {
@@ -52,6 +55,7 @@ impl Infoset {
         self.fog_state.make_move_under_fog(capture_square);
     }
 
+    #[inline(never)]
     fn sense(&mut self, sense: i32, sense_result: &[(i32, Option<Piece>)]) {
         assert_eq!(self.fog_state.side_to_play, self.color);
         for s in &self.possible_states {
@@ -60,6 +64,7 @@ impl Infoset {
         self.possible_states.retain(|state| { state.sense(sense) == sense_result });
     }
 
+    #[inline(never)]
     fn sense_entropy(&self, sense: i32) -> f64 {
         let mut cnt = HashMap::<_, i32>::new();
         for s in &self.possible_states {
@@ -74,6 +79,7 @@ impl Infoset {
         s
     }
 
+    #[inline(never)]
     fn my_move(&mut self, requested_move: Option<Move>, taken_move: Option<Move>, capture_square: Option<i32>) {
         assert_eq!(self.fog_state.side_to_play, self.color);
         for s in &self.possible_states {
@@ -96,6 +102,7 @@ impl Infoset {
         self.fog_state.make_move(taken_move);
     }
 
+    #[inline(never)]
     fn render(&self) -> Vec<String> {
         let mut result = Vec::new();
         for rank in (0..8).rev() {
