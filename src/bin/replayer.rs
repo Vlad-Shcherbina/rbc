@@ -66,9 +66,21 @@ impl Infoset {
 
     #[inline(never)]
     fn sense_entropy(&self, sense: i32) -> f64 {
-        let mut cnt = HashMap::<_, i32>::new();
+        let rank = sense / 8;
+        let file = sense % 8;
+        assert!(1 <= rank && rank < 7);
+        assert!(1 <= file && file < 7);
+        let mut cnt = HashMap::<i32, i32>::new();
         for s in &self.possible_states {
-            *cnt.entry(s.sense(sense)).or_default() += 1;
+            let mut fingerprint = 0i32;
+            for r in rank-1..=rank+1 {
+                for f in file-1..=file+1 {
+                    let sq = (r * 8 + f) as usize;
+                    fingerprint *= 7;
+                    fingerprint += s.pieces.0[sq].map_or(0, |p| p.kind.to_int());
+                }
+            }
+            *cnt.entry(fingerprint).or_default() += 1;
         }
         let mut s = 0.0;
         let n = self.possible_states.len() as f64;

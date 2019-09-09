@@ -35,6 +35,17 @@ impl PieceKind {
             PieceKind::King => 'k',
         }
     }
+
+    pub fn to_int(self) -> i32 {
+        match self {
+            PieceKind::Pawn => 1,
+            PieceKind::Knight => 2,
+            PieceKind::Bishop => 3,
+            PieceKind::Rook => 4,
+            PieceKind::Queen => 5,
+            PieceKind::King => 6,
+        }
+    }
 }
 
 impl From<fen::PieceKind> for PieceKind {
