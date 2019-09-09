@@ -173,7 +173,7 @@ impl From<fen::Piece> for Piece {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoardState {
-    pieces: crate::derive_wrapper::Wrapper<[Option<Piece>; 64]>,
+    pieces: [u32; 8],
     pub side_to_play: Color,
     pub white_can_oo: bool,
     pub white_can_ooo: bool,
@@ -186,13 +186,8 @@ pub struct BoardState {
 
 impl From<fen::BoardState> for BoardState {
     fn from(b: fen::BoardState) -> BoardState {
-        let mut pieces = [None; 64];
-        assert_eq!(b.pieces.len(), 64);
-        for (i, p) in b.pieces.into_iter().enumerate() {
-            pieces[i] = p.map(|p| p.into());
-        }
-        BoardState {
-            pieces: crate::derive_wrapper::Wrapper::new(pieces),
+        let mut result = BoardState {
+            pieces: [0, 0, 0, 0, 0, 0, 0, 0],
             side_to_play: b.side_to_play.into(),
             white_can_oo: b.white_can_oo,
             white_can_ooo: b.white_can_ooo,
@@ -201,17 +196,27 @@ impl From<fen::BoardState> for BoardState {
             en_passant_square: b.en_passant_square.map(i32::from),
             halfmove_clock: b.halfmove_clock as i32,
             fullmove_number: b.fullmove_number as i32,
+        };
+        for (i, p) in b.pieces.into_iter().enumerate() {
+            result.replace_piece(i as i32, p.map(Piece::from));
         }
+        result
     }
 }
 
 impl BoardState {
     pub fn get_piece(&self, i: i32) -> Option<Piece> {
-        self.pieces.0[i as usize]
+        let i = i as usize;
+        let k = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
+        Piece::from_int(k)
     }
 
     pub fn replace_piece(&mut self, i: i32, new_piece: Option<Piece>) -> Option<Piece> {
-        std::mem::replace(&mut self.pieces.0[i as usize], new_piece)
+        let i = i as usize;
+        let old = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
+        self.pieces[i / 8] &= !(15 << (i % 8 * 4));
+        self.pieces[i / 8] |= Piece::to_int(new_piece) << (i % 8 * 4);
+        Piece::from_int(old)
     }
 
     pub fn render(&self) -> Vec<String> {
