@@ -382,4 +382,17 @@ impl BoardState {
             }
         }
     }
+
+    pub fn all_moves(&self) -> Vec<Move> {
+        // TODO: inefficient
+        let mut fog_state = self.clone();
+        fog_state.fog_of_war(self.side_to_play);
+
+        let moves: std::collections::HashSet<Move> =
+            fog_state.all_sensible_requested_moves()
+            .into_iter()
+            .filter_map(|m| self.requested_to_taken(m))
+            .collect();
+        moves.into_iter().collect()
+    }
 }

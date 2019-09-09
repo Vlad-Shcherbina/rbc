@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 
 pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PieceKind {
     Pawn,
     Knight,
@@ -50,7 +50,7 @@ impl From<fen::PieceKind> for PieceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize)]
 #[serde(from = "bool", into="bool")]
 pub enum Color {
@@ -76,7 +76,7 @@ impl From<fen::Color> for Color {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Deserialize)]
 #[serde(from = "crate::api::TypeValue")]
 pub struct Piece {
@@ -122,7 +122,7 @@ impl From<fen::Piece> for Piece {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoardState {
     pub pieces: crate::derive_wrapper::Wrapper<[Option<Piece>; 64]>,
     pub side_to_play: Color,
@@ -193,7 +193,7 @@ impl BoardState {
         }
     }
 
-    pub fn sense(&mut self, p: i32) -> Vec<(i32, Option<Piece>)> {
+    pub fn sense(&self, p: i32) -> Vec<(i32, Option<Piece>)> {
         let mut result = Vec::with_capacity(9);
         let r = p / 8;
         let f = p % 8;
@@ -207,7 +207,7 @@ impl BoardState {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Move {
     pub from: i32,
     pub to: i32,
