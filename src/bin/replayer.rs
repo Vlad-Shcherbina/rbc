@@ -85,7 +85,7 @@ impl Infoset {
         let mut s = 0.0;
         let n = self.possible_states.len() as f64;
         for &v in cnt.values() {
-            let p = v as f64 / n;
+            let p = f64::from(v) / n;
             s -= p.log2() * p;
         }
         s
@@ -118,8 +118,8 @@ impl Infoset {
     fn render(&self) -> Vec<String> {
         let mut piece_sets = vec![0u16; 64];
         for s in &self.possible_states {
-            for i in 0..64 {
-                piece_sets[i] |= 1u16 << Piece::to_int(s.get_piece(i as i32));
+            for (i, p) in piece_sets.iter_mut().enumerate() {
+                *p |= 1u16 << Piece::to_int(s.get_piece(i as i32));
             }
         }
         let mut result = Vec::new();

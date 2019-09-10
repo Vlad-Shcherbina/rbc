@@ -3,6 +3,7 @@ use rusqlite::{Connection, params};
 use rbc::history::GameHistory;
 use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
 
+#[allow(clippy::cognitive_complexity)]
 fn check_game(h: GameHistory, forgiving_en_passant: bool) {
     for (i, m) in h.moves.iter().enumerate() {
         if i == 0 {
