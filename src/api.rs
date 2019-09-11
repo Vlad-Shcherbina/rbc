@@ -264,12 +264,14 @@ impl From<TypeValue> for Piece {
 #[derive(Debug)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SenseResponse {
+struct SenseResponse {
     sense_result: Vec<(i32, Option<Piece>)>,
 }
 
-pub fn sense(game_id: i32, square: i32) -> MyResult<SenseResponse> {
-    make_post_request(&format!("/api/games/{}/sense", game_id), &SenseRequest { square })
+pub fn sense(game_id: i32, square: i32) -> MyResult<Vec<(i32, Option<Piece>)>> {
+    let sr: SenseResponse =
+        make_post_request(&format!("/api/games/{}/sense", game_id), &SenseRequest { square })?;
+    Ok(sr.sense_result)
 }
 
 #[derive(Clone, Debug)]
