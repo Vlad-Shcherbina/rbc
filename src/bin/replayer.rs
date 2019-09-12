@@ -4,6 +4,7 @@ use rbc::history::GameHistory;
 use rbc::game::{Square, Color, Move, BoardState};
 
 fn replay(h: &GameHistory, color: Color) -> usize {
+    // TODO: switch to GreedyAi
     let mut max_size = 0;
 
     let mut move_number = match color {

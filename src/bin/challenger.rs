@@ -2,7 +2,7 @@ use log::info;
 use rand::Rng;
 use rbc::game::{Color, Move};
 use rbc::api;
-use rbc::ai_interface::{Ai, RandomAi};
+use rbc::ai_interface::Ai;
 
 fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<(), api::Error> {
     let seed = rand::thread_rng().gen();
@@ -59,7 +59,8 @@ fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<(), api::Error> 
 
 fn main() {
     env_logger::init();
-    let ai = RandomAi;
+    // let ai = rbc::ai_interface::RandomAi;
+    let ai = rbc::greedy::GreedyAi;
 
     loop {
         let mut opponents = api::list_users().unwrap();
