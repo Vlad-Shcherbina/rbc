@@ -1,7 +1,7 @@
 use log::{info, error};
 use rusqlite::{Connection, params};
 use rbc::history::GameHistory;
-use rbc::game::{STARTING_FEN, Color, BoardState, Move, square_to_uci};
+use rbc::game::{STARTING_FEN, Color, BoardState, Move};
 
 #[allow(clippy::cognitive_complexity)]
 fn check_game(h: GameHistory, forgiving_en_passant: bool) {
@@ -19,7 +19,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         let mut state = before;
         info!("{:#?}", state.render());
         if let Some(ep) = state.en_passant_square {
-            info!("en passant square: {}", square_to_uci(ep));
+            info!("en passant square: {:?}", ep);
         }
         info!("sense: {:?} -> {:?}", m.sense, m.sense_result);
         match m.sense {

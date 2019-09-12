@@ -3,7 +3,7 @@ use log::{info, error};
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 
-use crate::game::{Color, Piece};
+use crate::game::{Square, Color, Piece};
 
 const SERVER_URL: &str = "https://rbc.jhuapl.edu";
 
@@ -249,7 +249,7 @@ pub fn seconds_left(game_id: i32) -> MyResult<f32> {
 
 #[derive(Serialize)]
 struct SenseRequest {
-    square: i32,
+    square: Square,
 }
 
 impl From<TypeValue> for Piece {
@@ -265,10 +265,10 @@ impl From<TypeValue> for Piece {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SenseResponse {
-    sense_result: Vec<(i32, Option<Piece>)>,
+    sense_result: Vec<(Square, Option<Piece>)>,
 }
 
-pub fn sense(game_id: i32, square: i32) -> MyResult<Vec<(i32, Option<Piece>)>> {
+pub fn sense(game_id: i32, square: Square) -> MyResult<Vec<(Square, Option<Piece>)>> {
     let sr: SenseResponse =
         make_post_request(&format!("/api/games/{}/sense", game_id), &SenseRequest { square })?;
     Ok(sr.sense_result)
@@ -305,14 +305,14 @@ struct MoveRequest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawMoveResponse {
-    move_result: (Option<Move>, Option<Move>, Option<i32>),  // (requested, taken, capture square)
+    move_result: (Option<Move>, Option<Move>, Option<Square>),  // (requested, taken, capture square)
 }
 
 #[derive(Debug)]
 pub struct MoveResponse {
     pub requested: Option<String>,
     pub taken: Option<String>,
-    pub capture_square: Option<i32>,
+    pub capture_square: Option<Square>,
 }
 
 pub fn make_move(game_id: i32, m: String) -> MyResult<MoveResponse> {
@@ -340,10 +340,10 @@ pub fn end_turn(game_id: i32) -> MyResult<()> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct OpponentMoveResultsResponse {
-    opponent_move_results: Option<i32>,
+    opponent_move_results: Option<Square>,
 }
 
-pub fn opponent_move_results(game_id: i32) -> MyResult<Option<i32>> {
+pub fn opponent_move_results(game_id: i32) -> MyResult<Option<Square>> {
     let addr = format!("/api/games/{}/opponent_move_results", game_id);
     Ok(make_get_request::<OpponentMoveResultsResponse>(&addr)?
        .opponent_move_results)
@@ -360,11 +360,11 @@ pub struct RawGameHistory {
     pub black_name: String,
     pub winner_color: Option<Color>,
     pub win_reason: WinReason,
-    pub senses: HashMap<String, Vec<Option<i32>>>,
-    pub sense_results: HashMap<String, Vec<Vec<(i32, Option<Piece>)>>>,
+    pub senses: HashMap<String, Vec<Option<Square>>>,
+    pub sense_results: HashMap<String, Vec<Vec<(Square, Option<Piece>)>>>,
     pub requested_moves: HashMap<String, Vec<Option<Move>>>,
     pub taken_moves: HashMap<String, Vec<Option<Move>>>,
-    pub capture_squares: HashMap<String, Vec<Option<i32>>>,
+    pub capture_squares: HashMap<String, Vec<Option<Square>>>,
     pub fens_before_move: HashMap<String, Vec<String>>,
     pub fens_after_move: HashMap<String, Vec<String>>,
 }

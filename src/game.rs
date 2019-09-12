@@ -2,6 +2,47 @@ use serde::{Serialize, Deserialize};
 
 pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize)]
+#[serde(from="i8", into="i8")]
+pub struct Square(pub i8);
+
+impl From<i8> for Square {
+    fn from(x: i8) -> Self {
+        assert!(0 <= x && x < 64);
+        Square(x)
+    }
+}
+
+impl From<Square> for i8 {
+    fn from(s: Square) -> i8 {
+        s.0
+    }
+}
+
+impl Square {
+    fn to_san(&self) -> String {
+        let x = self.0;
+        format!("{}{}", ('a' as i8 + x % 8) as u8 as char, x / 8 + 1)
+    }
+
+    fn from_san(s: &str) -> Square {
+        let mut it = s.chars();
+        let file = it.next().unwrap();
+        let rank = it.next().unwrap();
+        assert!(it.next().is_none());
+        assert!('a' <= file && file <= 'h');
+        assert!('1' <= rank && rank <= '8');
+        Square((file as i8 - 'a' as i8) + 8 * (rank as i8 - '1' as i8))
+    }
+}
+
+impl std::fmt::Debug for Square {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_san())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PieceKind {
     Pawn,
@@ -179,7 +220,7 @@ pub struct BoardState {
     pub white_can_ooo: bool,
     pub black_can_oo: bool,
     pub black_can_ooo: bool,
-    pub en_passant_square: Option<i32>,
+    pub en_passant_square: Option<Square>,
     pub halfmove_clock: i32,
     pub fullmove_number: i32,
 }
@@ -193,26 +234,26 @@ impl From<fen::BoardState> for BoardState {
             white_can_ooo: b.white_can_ooo,
             black_can_oo: b.black_can_oo,
             black_can_ooo: b.black_can_ooo,
-            en_passant_square: b.en_passant_square.map(i32::from),
+            en_passant_square: b.en_passant_square.map(|s| Square(s as i8)),
             halfmove_clock: b.halfmove_clock as i32,
             fullmove_number: b.fullmove_number as i32,
         };
         for (i, p) in b.pieces.into_iter().enumerate() {
-            result.replace_piece(i as i32, p.map(Piece::from));
+            result.replace_piece(Square(i as i8), p.map(Piece::from));
         }
         result
     }
 }
 
 impl BoardState {
-    pub fn get_piece(&self, i: i32) -> Option<Piece> {
-        let i = i as usize;
+    pub fn get_piece(&self, i: Square) -> Option<Piece> {
+        let i = i.0 as usize;
         let k = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
         Piece::from_int(k)
     }
 
-    pub fn replace_piece(&mut self, i: i32, new_piece: Option<Piece>) -> Option<Piece> {
-        let i = i as usize;
+    pub fn replace_piece(&mut self, i: Square, new_piece: Option<Piece>) -> Option<Piece> {
+        let i = i.0 as usize;
         let old = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
         self.pieces[i / 8] &= !(15 << (i % 8 * 4));
         self.pieces[i / 8] |= Piece::to_int(new_piece) << (i % 8 * 4);
@@ -226,7 +267,7 @@ impl BoardState {
             let mut line = (rank + 1).to_string();
             for file in 0..8 {
                 line.push(' ');
-                line.push(self.get_piece(file + 8 * rank).map_or('.', Piece::to_char));
+                line.push(self.get_piece(Square(file + 8 * rank)).map_or('.', Piece::to_char));
             }
             result.push(line);
         }
@@ -236,6 +277,7 @@ impl BoardState {
     }
     pub fn fog_of_war(&mut self, color: Color) {
         for sq in 0..64 {
+            let sq = Square(sq);
             let p = self.get_piece(sq);
             if p.is_some() && p.unwrap().color != color {
                 self.replace_piece(sq, None);
@@ -256,13 +298,13 @@ impl BoardState {
         }
     }
 
-    pub fn sense(&self, p: i32) -> Vec<(i32, Option<Piece>)> {
+    pub fn sense(&self, p: Square) -> Vec<(Square, Option<Piece>)> {
         let mut result = Vec::with_capacity(9);
-        let r = p / 8;
-        let f = p % 8;
+        let r = p.0 / 8;
+        let f = p.0 % 8;
         for r in (0.max(r - 1)..=7.min(r + 1)).rev() {
             for f in 0.max(f - 1)..=7.min(f + 1) {
-                let q = r * 8 + f;
+                let q = Square(r * 8 + f);
                 result.push((q, self.get_piece(q)));
             }
         }
@@ -272,8 +314,8 @@ impl BoardState {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Move {
-    pub from: i32,
-    pub to: i32,
+    pub from: Square,
+    pub to: Square,
     pub promotion: Option<PieceKind>,
 }
 
@@ -287,34 +329,19 @@ impl Move {
             panic!("{:?}", s)
         };
         Move {
-            from: square_from_uci(&s[..2]),
-            to: square_from_uci(&s[2..4]),
+            from: Square::from_san(&s[..2]),
+            to: Square::from_san(&s[2..4]),
             promotion: p.map(PieceKind::from_char),
         }
     }
 
     pub fn to_uci(&self) -> String {
-        let mut result = format!("{}{}", square_to_uci(self.from), square_to_uci(self.to));
+        let mut result = format!("{}{}", self.from.to_san(), self.to.to_san());
         if let Some(p) = self.promotion {
             result.push(p.to_char());
         }
         result
     }
-}
-
-pub fn square_to_uci(s: i32) -> String {
-    assert!(0 <= s && s < 64);
-    format!("{}{}", ('a' as i32 + s % 8) as u8 as char, s / 8 + 1)
-}
-
-fn square_from_uci(s: &str) -> i32 {
-    let mut it = s.chars();
-    let file = it.next().unwrap();
-    let rank = it.next().unwrap();
-    assert!(it.next().is_none());
-    assert!('a' <= file && file <= 'h');
-    assert!('1' <= rank && rank <= '8');
-    (file as i32 - 'a' as i32) + 8 * (rank as i32 - '1' as i32)
 }
 
 #[cfg(test)]
@@ -336,21 +363,23 @@ mod tests {
     }
 
     #[test]
-    fn test_square_to_from_uci() {
-        assert_eq!(square_to_uci(0), "a1");
-        assert_eq!(square_to_uci(1), "b1");
-        assert_eq!(square_to_uci(63), "h8");
+    fn test_square_to_from_san() {
+        assert_eq!(Square(0).to_san(), "a1");
+        assert_eq!(Square(1).to_san(), "b1");
+        assert_eq!(Square(63).to_san(), "h8");
 
-        assert_eq!(square_from_uci("a1"), 0);
-        assert_eq!(square_from_uci("b1"), 1);
-        assert_eq!(square_from_uci("h8"), 63);
+        assert_eq!(Square::from_san("a1").0, 0);
+        assert_eq!(Square::from_san("b1").0, 1);
+        assert_eq!(Square::from_san("h8").0, 63);
     }
 
     #[test]
     fn test_move_to_from_uci() {
-        assert_eq!(Move::from_uci("a2c1"), Move { from: 8, to: 2, promotion: None });
-        assert_eq!(Move::from_uci("a2c1q"), Move { from: 8, to: 2, promotion: Some(PieceKind::Queen) });
-        assert_eq!(Move { from: 8, to: 2, promotion: None }.to_uci(), "a2c1");
-        assert_eq!(Move { from: 8, to: 2, promotion: Some(PieceKind::Queen) }.to_uci(), "a2c1q");
+        assert_eq!(Move::from_uci("a2c1"),
+                   Move { from: Square(8), to: Square(2), promotion: None });
+        assert_eq!(Move::from_uci("a2c1q"),
+                   Move { from: Square(8), to: Square(2), promotion: Some(PieceKind::Queen) });
+        assert_eq!(Move { from: Square(8), to: Square(2), promotion: None }.to_uci(), "a2c1");
+        assert_eq!(Move { from: Square(8), to: Square(2), promotion: Some(PieceKind::Queen) }.to_uci(), "a2c1q");
     }
 }

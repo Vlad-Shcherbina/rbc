@@ -1,7 +1,7 @@
 use log::{info, error};
 use rusqlite::{Connection, params};
 use rbc::history::GameHistory;
-use rbc::game::{Color, Move, BoardState, square_to_uci};
+use rbc::game::{Square, Color, Move, BoardState};
 
 fn replay(h: &GameHistory, color: Color) -> usize {
     let mut max_size = 0;
@@ -22,11 +22,11 @@ fn replay(h: &GameHistory, color: Color) -> usize {
         }
         max_size = max_size.max(infoset.possible_states.len());
         let mut best_sense_rank = -1.0;
-        let mut best_sense = -1;
+        let mut best_sense = Square(0);
         for rank in (1..7).rev() {
             let mut line = String::new();
             for file in 1..7 {
-                let sq = rank * 8 + file;
+                let sq = Square(rank * 8 + file);
                 let e = infoset.sense_entropy(sq);
                 line.push_str(&format!("{:>7.2}", e));
                 if e > best_sense_rank {
@@ -36,7 +36,7 @@ fn replay(h: &GameHistory, color: Color) -> usize {
             }
             info!("entropy: {}", line)
         }
-        info!("best sense: {} {:.3}", square_to_uci(best_sense), best_sense_rank);
+        info!("best sense: {:?} {:.3}", best_sense, best_sense_rank);
         let actual_state: BoardState = fen::BoardState::from_fen(&h.moves[move_number].fen_before).unwrap().into();
         let sense_result = actual_state.sense(best_sense);
         info!("best sense result: {:?}", sense_result);

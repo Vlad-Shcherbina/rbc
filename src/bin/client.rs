@@ -57,7 +57,7 @@ fn main() {
                             return false;
                         }
                     }
-                    match api::sense(game_id, 0) {
+                    match api::sense(game_id, 0.into()) {
                         Ok(_) => {}
                         Err(e) => {
                             error!("{:?}", e);

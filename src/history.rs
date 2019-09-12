@@ -1,13 +1,13 @@
 use crate::api::RawGameHistory;
-use crate::game::{Color, Piece};
+use crate::game::{Square, Color, Piece};
 
 #[derive(Debug)]
 pub struct MoveHistory {
-    pub sense: Option<i32>,
-    pub sense_result: Vec<(i32, Option<Piece>)>,
+    pub sense: Option<Square>,
+    pub sense_result: Vec<(Square, Option<Piece>)>,
     pub requested_move: Option<String>,
     pub taken_move: Option<String>,
-    pub capture_square: Option<i32>,
+    pub capture_square: Option<Square>,
     pub fen_before: String,
     pub fen_after: String,
 }

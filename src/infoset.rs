@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::game::{STARTING_FEN, Color, Piece, Move, BoardState};
+use crate::game::{STARTING_FEN, Square, Color, Piece, Move, BoardState};
 
 pub struct Infoset {
     pub color: Color,
@@ -27,7 +27,7 @@ impl Infoset {
     }
 
     #[inline(never)]
-    pub fn opponent_move(&mut self, capture_square: Option<i32>) {
+    pub fn opponent_move(&mut self, capture_square: Option<Square>) {
         assert!(self.fog_state.side_to_play != self.color);
         for s in &self.possible_states {
             assert!(s.side_to_play != self.color);
@@ -53,7 +53,7 @@ impl Infoset {
     }
 
     #[inline(never)]
-    pub fn sense(&mut self, sense: i32, sense_result: &[(i32, Option<Piece>)]) {
+    pub fn sense(&mut self, sense: Square, sense_result: &[(Square, Option<Piece>)]) {
         assert_eq!(self.fog_state.side_to_play, self.color);
         for s in &self.possible_states {
             assert_eq!(s.side_to_play, self.color);
@@ -62,9 +62,9 @@ impl Infoset {
     }
 
     #[inline(never)]
-    pub fn sense_entropy(&self, sense: i32) -> f64 {
-        let rank = sense / 8;
-        let file = sense % 8;
+    pub fn sense_entropy(&self, sense: Square) -> f64 {
+        let rank = sense.0 / 8;
+        let file = sense.0 % 8;
         assert!(1 <= rank && rank < 7);
         assert!(1 <= file && file < 7);
         let mut cnt = HashMap::<u32, i32>::new();
@@ -72,7 +72,7 @@ impl Infoset {
             let mut fingerprint = 0u32;
             for r in rank-1..=rank+1 {
                 for f in file-1..=file+1 {
-                    let sq = r * 8 + f;
+                    let sq = Square(r * 8 + f);
                     fingerprint *= 7;
                     fingerprint += s.get_piece(sq).map_or(0, |p| p.kind.to_int());
                 }
@@ -89,7 +89,7 @@ impl Infoset {
     }
 
     #[inline(never)]
-    pub fn my_move(&mut self, requested_move: Option<Move>, taken_move: Option<Move>, capture_square: Option<i32>) {
+    pub fn my_move(&mut self, requested_move: Option<Move>, taken_move: Option<Move>, capture_square: Option<Square>) {
         assert_eq!(self.fog_state.side_to_play, self.color);
         for s in &self.possible_states {
             assert_eq!(s.side_to_play, self.color);
@@ -116,7 +116,7 @@ impl Infoset {
         let mut piece_sets = vec![0u16; 64];
         for s in &self.possible_states {
             for (i, p) in piece_sets.iter_mut().enumerate() {
-                *p |= 1u16 << Piece::to_int(s.get_piece(i as i32));
+                *p |= 1u16 << Piece::to_int(s.get_piece(Square(i as i8)));
             }
         }
         let mut result = Vec::new();

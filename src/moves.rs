@@ -1,4 +1,4 @@
-use crate::game::{Color, PieceKind, Piece, Move, BoardState};
+use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
 
 const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
     Some(PieceKind::Knight),
@@ -10,9 +10,9 @@ const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
 
 impl BoardState {
     #[inline(never)]
-    pub fn make_move_under_fog(&mut self, capture_square: Option<i32>) {
+    pub fn make_move_under_fog(&mut self, capture_square: Option<Square>) {
         self.side_to_play = self.side_to_play.opposite();
-        if let Some(p) = capture_square {
+        if let Some(Square(p)) = capture_square {
             match self.side_to_play {
                 Color::White => {
                     if p == 0 {
@@ -39,14 +39,14 @@ impl BoardState {
                     }
                 }
             }
-            let p = self.replace_piece(p, None);
+            let p = self.replace_piece(Square(p), None);
             assert_eq!(p.unwrap().color, self.side_to_play);
         }
     }
 
     #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
-    pub fn make_move(&mut self, m: Option<Move>) -> Option<i32> {
+    pub fn make_move(&mut self, m: Option<Move>) -> Option<Square> {
         self.side_to_play = match self.side_to_play {
             Color::White => Color::Black,
             Color::Black => { self.fullmove_number += 1; Color::White },
@@ -72,24 +72,24 @@ impl BoardState {
                 if let Some(ep) = self.en_passant_square.take() {
                     if m.to == ep {
                         let cap = match self.side_to_play {
-                            Color::White => ep + 8,
-                            Color::Black => ep - 8,
+                            Color::White => ep.0 + 8,
+                            Color::Black => ep.0 - 8,
                         };
-                        capture_square = Some(cap);
-                        self.replace_piece(cap, None);
+                        capture_square = Some(Square(cap));
+                        self.replace_piece(Square(cap), None);
                     }
                 }
 
-                if m.to < 8 || m.to >= 56 {
+                if m.to.0 < 8 || m.to.0 >= 56 {
                     p.as_mut().unwrap().kind = m.promotion.unwrap();
                 }
                 self.halfmove_clock = 0;
 
-                if m.to == m.from - 16 {
-                    self.en_passant_square = Some(m.from - 8);
+                if m.to.0 == m.from.0 - 16 {
+                    self.en_passant_square = Some(Square(m.from.0 - 8));
                 }
-                if m.to == m.from + 16 {
-                    self.en_passant_square = Some(m.from + 8);
+                if m.to.0 == m.from.0 + 16 {
+                    self.en_passant_square = Some(Square(m.from.0 + 8));
                 }
             }
             Some(_) => {
@@ -102,63 +102,63 @@ impl BoardState {
             self.halfmove_clock = 0;
         }
 
-        if p.unwrap().kind == PieceKind::King && m.from == 4 && m.to == 6 {
+        if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 6 {
             assert!(self.white_can_oo);
-            assert_eq!(self.get_piece(7).unwrap().kind, PieceKind::Rook);
+            assert_eq!(self.get_piece(Square(7)).unwrap().kind, PieceKind::Rook);
             self.white_can_oo = false;
             self.white_can_ooo = false;
-            let rook = self.replace_piece(7, None);
-            let e = self.replace_piece(5, rook);
+            let rook = self.replace_piece(Square(7), None);
+            let e = self.replace_piece(Square(5), rook);
             assert!(e.is_none());
         }
-        if p.unwrap().kind == PieceKind::King && m.from == 4 && m.to == 2 {
+        if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 2 {
             assert!(self.white_can_ooo);
-            assert_eq!(self.get_piece(0).unwrap().kind, PieceKind::Rook);
+            assert_eq!(self.get_piece(Square(0)).unwrap().kind, PieceKind::Rook);
             self.white_can_oo = false;
             self.white_can_ooo = false;
-            let rook = self.replace_piece(0, None);
-            let e = self.replace_piece(3, rook);
+            let rook = self.replace_piece(Square(0), None);
+            let e = self.replace_piece(Square(3), rook);
             assert!(e.is_none());
         }
 
-        if p.unwrap().kind == PieceKind::King && m.from == 60 && m.to == 62 {
+        if p.unwrap().kind == PieceKind::King && m.from.0 == 60 && m.to.0 == 62 {
             assert!(self.black_can_oo);
-            assert_eq!(self.get_piece(63).unwrap().kind, PieceKind::Rook);
+            assert_eq!(self.get_piece(Square(63)).unwrap().kind, PieceKind::Rook);
             self.black_can_oo = false;
             self.black_can_ooo = false;
-            let rook = self.replace_piece(63, None);
-            let e = self.replace_piece(61, rook);
+            let rook = self.replace_piece(Square(63), None);
+            let e = self.replace_piece(Square(61), rook);
             assert!(e.is_none());
         }
-        if p.unwrap().kind == PieceKind::King && m.from == 60 && m.to == 58 {
+        if p.unwrap().kind == PieceKind::King && m.from.0 == 60 && m.to.0 == 58 {
             assert!(self.black_can_ooo);
-            assert_eq!(self.get_piece(56).unwrap().kind, PieceKind::Rook);
+            assert_eq!(self.get_piece(Square(56)).unwrap().kind, PieceKind::Rook);
             self.black_can_oo = false;
             self.black_can_ooo = false;
-            let rook = self.replace_piece(56, None);
-            let e = self.replace_piece(59, rook);
+            let rook = self.replace_piece(Square(56), None);
+            let e = self.replace_piece(Square(59), rook);
             assert!(e.is_none());
         }
 
-        if m.to == 4 || m.from == 4 {
+        if m.to.0 == 4 || m.from.0 == 4 {
             self.white_can_oo = false;
             self.white_can_ooo = false;
         }
-        if m.to == 0 || m.from == 0 {
+        if m.to.0 == 0 || m.from.0 == 0 {
             self.white_can_ooo = false;
         }
-        if m.to == 7 || m.from == 7 {
+        if m.to.0 == 7 || m.from.0 == 7 {
             self.white_can_oo = false;
         }
 
-        if m.to == 60 || m.from == 60 {
+        if m.to.0 == 60 || m.from.0 == 60 {
             self.black_can_oo = false;
             self.black_can_ooo = false;
         }
-        if m.to == 56 || m.from == 56 {
+        if m.to.0 == 56 || m.from.0 == 56 {
             self.black_can_ooo = false;
         }
-        if m.to == 63 || m.from == 63 {
+        if m.to.0 == 63 || m.from.0 == 63 {
             self.black_can_oo = false;
         }
         capture_square
@@ -169,6 +169,7 @@ impl BoardState {
     pub fn all_sensible_requested_moves(&self) -> Vec<Move> {
         let mut result = Vec::new();
         for from in 0..64 {
+            let from = Square(from);
             let p = self.get_piece(from);
             if p.is_none() {
                 continue;
@@ -177,15 +178,15 @@ impl BoardState {
             assert_eq!(p.color, self.side_to_play);
             match p.kind {
                 PieceKind::Pawn => {
-                    let rank = from / 8;
-                    let file = from % 8;
+                    let rank = from.0 / 8;
+                    let file = from.0 % 8;
                     let (dr, home_rank, promotion_rank) = match self.side_to_play {
                         Color::White => (1, 1, 6),
                         Color::Black => (-1, 6, 1),
                     };
 
                     assert!(0 <= rank + dr && rank + dr < 8);
-                    if self.get_piece(from + 8 * dr).is_none() {
+                    if self.get_piece(Square(from.0 + 8 * dr)).is_none() {
                         let promotion_targets = if rank == promotion_rank {
                             PROMOTION_TARGETS
                         } else {
@@ -194,14 +195,14 @@ impl BoardState {
                         for &promotion in promotion_targets {
                             result.push(Move {
                                 from,
-                                to: from + 8 * dr,
+                                to: Square(from.0 + 8 * dr),
                                 promotion,
                             });
                         }
-                        if rank == home_rank && self.get_piece(from + 16 * dr).is_none() {
+                        if rank == home_rank && self.get_piece(Square(from.0 + 16 * dr)).is_none() {
                             result.push(Move {
                                 from,
-                                to: from + 16 * dr,
+                                to: Square(from.0 + 16 * dr),
                                 promotion: None,
                             });
                         }
@@ -210,7 +211,7 @@ impl BoardState {
                         if file + df < 0 || file + df >= 8 {
                             continue;
                         }
-                        let to = (rank + dr) * 8 + file + df;
+                        let to = Square((rank + dr) * 8 + file + df);
                         if self.get_piece(to).is_none() {
                             let promotion_targets = if rank + dr == 0 || rank + dr == 7 {
                                 PROMOTION_TARGETS
@@ -233,15 +234,15 @@ impl BoardState {
                         _ => unreachable!(),
                     };
                     for &(dr, df) in dirs {
-                        let mut r = from / 8;
-                        let mut f = from % 8;
+                        let mut r = from.0 / 8;
+                        let mut f = from.0 % 8;
                         loop {
                             r += dr;
                             f += df;
                             if r < 0 || r >= 8 || f < 0 || f >= 8 {
                                 break;
                             }
-                            let to = r * 8 + f;
+                            let to = Square(r * 8 + f);
                             if self.get_piece(to).is_some() {
                                 break;
                             }
@@ -257,12 +258,12 @@ impl BoardState {
                         _ => unreachable!(),
                     };
                     for &(dr, df) in dirs {
-                        let r = from / 8 + dr;
-                        let f = from % 8 + df;
+                        let r = from.0 / 8 + dr;
+                        let f = from.0 % 8 + df;
                         if r < 0 || r >= 8 || f < 0 || f >= 8 {
                             continue;
                         }
-                        let to = r * 8 + f;
+                        let to = Square(r * 8 + f);
                         if self.get_piece(to).is_some() {
                             continue;
                         }
@@ -274,28 +275,28 @@ impl BoardState {
         match self.side_to_play {
             Color::White => {
                 if self.white_can_oo &&
-                   self.get_piece(5).is_none() &&
-                   self.get_piece(6).is_none() {
-                    result.push(Move { from: 4, to: 6, promotion: None });
+                   self.get_piece(Square(5)).is_none() &&
+                   self.get_piece(Square(6)).is_none() {
+                    result.push(Move { from: Square(4), to: Square(6), promotion: None });
                 }
                 if self.white_can_ooo &&
-                   self.get_piece(1).is_none() &&
-                   self.get_piece(2).is_none() &&
-                   self.get_piece(3).is_none() {
-                    result.push(Move { from: 4, to: 2, promotion: None });
+                   self.get_piece(Square(1)).is_none() &&
+                   self.get_piece(Square(2)).is_none() &&
+                   self.get_piece(Square(3)).is_none() {
+                    result.push(Move { from: Square(4), to: Square(2), promotion: None });
                 }
             }
             Color::Black => {
                 if self.black_can_oo &&
-                   self.get_piece(56 + 5).is_none() &&
-                   self.get_piece(56 + 6).is_none() {
-                    result.push(Move { from: 56 + 4, to: 56 + 6, promotion: None });
+                   self.get_piece(Square(56 + 5)).is_none() &&
+                   self.get_piece(Square(56 + 6)).is_none() {
+                    result.push(Move { from: Square(56 + 4), to: Square(56 + 6), promotion: None });
                 }
                 if self.black_can_ooo &&
-                   self.get_piece(56 + 1).is_none() &&
-                   self.get_piece(56 + 2).is_none() &&
-                   self.get_piece(56 + 3).is_none() {
-                    result.push(Move { from: 56 + 4, to: 56 + 2, promotion: None });
+                   self.get_piece(Square(56 + 1)).is_none() &&
+                   self.get_piece(Square(56 + 2)).is_none() &&
+                   self.get_piece(Square(56 + 3)).is_none() {
+                    result.push(Move { from: Square(56 + 4), to: Square(56 + 2), promotion: None });
                 }
             }
         }
@@ -312,9 +313,9 @@ impl BoardState {
                     Color::White => 1,
                     Color::Black => -1,
                 };
-                if m.to == m.from + 8 * dr {
+                if m.to.0 == m.from.0 + 8 * dr {
                     if self.get_piece(m.to).is_none() {
-                        if m.to < 8 || m.to >= 56 {
+                        if m.to.0 < 8 || m.to.0 >= 56 {
                            Some(Move {
                                 from: m.from,
                                 to: m.to,
@@ -326,18 +327,18 @@ impl BoardState {
                     } else {
                         None
                     }
-                } else if m.to == m.from + 16 * dr {
-                    if self.get_piece(m.from + 8 * dr).is_some() {
+                } else if m.to.0 == m.from.0 + 16 * dr {
+                    if self.get_piece(Square(m.from.0 + 8 * dr)).is_some() {
                         None
                     } else if self.get_piece(m.to).is_some() {
-                        Some(Move { from: m.from, to: m.from + 8 * dr, promotion: None })
+                        Some(Move { from: m.from, to: Square(m.from.0 + 8 * dr), promotion: None })
                     } else {
                         Some(m)
                     }
                 } else if self.en_passant_square == Some(m.to) {
                     Some(m)
                 } else if self.get_piece(m.to).is_some() {
-                    if m.to < 8 || m.to >= 56 {
+                    if m.to.0 < 8 || m.to.0 >= 56 {
                         Some(Move {
                             from: m.from,
                             to: m.to,
@@ -352,17 +353,17 @@ impl BoardState {
             }
             PieceKind::Knight => Some(m),
             PieceKind::King => {
-                if m.to == m.from - 2 {
-                    if self.get_piece(m.from - 1).is_none() &&
-                       self.get_piece(m.from - 2).is_none() &&
-                       self.get_piece(m.from - 3).is_none() {
+                if m.to.0 == m.from.0 - 2 {
+                    if self.get_piece(Square(m.from.0 - 1)).is_none() &&
+                       self.get_piece(Square(m.from.0 - 2)).is_none() &&
+                       self.get_piece(Square(m.from.0 - 3)).is_none() {
                         Some(m)
                     } else {
                         None
                     }
-                } else if m.to == m.from + 2 {
-                    if self.get_piece(m.from + 1).is_none() &&
-                       self.get_piece(m.from + 2).is_none() {
+                } else if m.to.0 == m.from.0 + 2 {
+                    if self.get_piece(Square(m.from.0 + 1)).is_none() &&
+                       self.get_piece(Square(m.from.0 + 2)).is_none() {
                         Some(m)
                     } else {
                         None
@@ -374,14 +375,14 @@ impl BoardState {
             PieceKind::Bishop |
             PieceKind::Rook |
             PieceKind::Queen => {
-                let mut r = m.from / 8;
-                let mut f = m.from % 8;
-                let dr = (m.to / 8 - r).signum();
-                let df = (m.to % 8 - f).signum();
+                let mut r = m.from.0 / 8;
+                let mut f = m.from.0 % 8;
+                let dr = (m.to.0 / 8 - r).signum();
+                let df = (m.to.0 % 8 - f).signum();
                 let to = loop {
                     r += dr;
                     f += df;
-                    let to = r * 8 + f;
+                    let to = Square(r * 8 + f);
                     if to == m.to || self.get_piece(to).is_some() {
                         break to;
                     }
