@@ -41,7 +41,8 @@ fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<(), api::Error> 
             player.handle_sense(sense, &sense_result);
 
             let requested = player.choose_move();
-            let mr = api::make_move(game_id, requested.expect("TODO").to_uci()).expect("TODO");
+            let req_str = requested.map_or("a1a1".to_owned(), |r| r.to_uci());
+            let mr = api::make_move(game_id, req_str).expect("TODO");
             player.handle_move(
                 mr.requested.map(|m| Move::from_uci(&m)),
                 mr.taken.map(|m| Move::from_uci(&m)),
@@ -70,5 +71,6 @@ fn main() {
         let color: Color = rand::thread_rng().gen_bool(0.5).into();
         let game_id = api::post_invitation(opponent, color).unwrap();
         play_game(color, game_id, &ai).unwrap();
+        break;
     }
 }
