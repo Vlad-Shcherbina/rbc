@@ -71,7 +71,7 @@ impl Player for GreedyPlayer {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
-                score -= evaluate(&s2, 2);
+                score -= evaluate(&s2, 3, -1000000000, 1000000000);
             }
             info!("candidate {:?} {}   ({} left)", requested, score, candidates.len() - 1 - i);
             if score > best_score {
@@ -105,23 +105,30 @@ fn material_value(k: PieceKind) -> i64 {
     }
 }
 
-fn evaluate(s: &BoardState, max_depth: i32) -> i64 {
-    let mut result = 0;
+fn evaluate(s: &BoardState, max_depth: i32, mut alpha: i64, beta: i64) -> i64 {
+    assert!(alpha <= beta);
+
+    let mut static_val = 0;
     for i in 0..64 {
         if let Some(p) = s.get_piece(Square(i)) {
             let sign = if p.color == s.side_to_play { 1 } else { - 1};
-            result += 100 * sign * material_value(p.kind);
+            static_val += 100 * sign * material_value(p.kind);
         }
-    }
-    if max_depth == 0 {
-        return result;
     }
 
     let all_moves = s.all_moves();
-    result += all_moves.len() as i64;
+    static_val += all_moves.len() as i64;
     let mut s2 = s.clone();
     s2.make_move(None);
-    result -= s2.all_moves().len() as i64;
+    static_val -= s2.all_moves().len() as i64;
+
+    if static_val >= beta {
+        return beta;
+    }
+    alpha = alpha.max(static_val);
+    if max_depth == 0 {
+        return alpha;
+    }
 
     for m in all_moves {
         let mut s2 = s.clone();
@@ -129,7 +136,11 @@ fn evaluate(s: &BoardState, max_depth: i32) -> i64 {
         if cs.is_none() {
             continue;
         }
-        result = result.max(-evaluate(&s2, max_depth - 1));
+        let t = -evaluate(&s2, max_depth - 1, -beta, -alpha);
+        if t >= beta {
+            return beta;
+        }
+        alpha = alpha.max(t);
     }
-    result
+    alpha
 }
