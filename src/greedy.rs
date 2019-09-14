@@ -28,7 +28,8 @@ impl Player for GreedyPlayer {
         assert!(self.color != self.infoset.fog_state.side_to_play);
         info!("opp capture: {:?}", capture_square);
         self.infoset.opponent_move(capture_square);
-        info!("{:#?}", self.infoset.render());
+        // info!("{:#?}", self.infoset.render());
+        info!("{} possible states after capture", self.infoset.possible_states.len());
     }
 
     fn choose_sense(&mut self) -> Square {
@@ -61,22 +62,18 @@ impl Player for GreedyPlayer {
 
     fn choose_move(&mut self) -> Option<Move> {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
-        let mut best_score = -10000;
+        let mut best_score = -1000000000;
         let mut best_move = None;
-        for requested in self.infoset.fog_state.all_sensible_requested_moves() {
+        let candidates = self.infoset.fog_state.all_sensible_requested_moves();
+        for (i, &requested) in candidates.iter().enumerate() {
             let mut score = 0;
             for s in &self.infoset.possible_states {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
-                let cs = s2.make_move(taken);
-                if let Some(cs) = cs {
-                    score += 20 * material_value(s.get_piece(cs).unwrap().kind);
-                }
-                s2.make_move(None);
-                assert_eq!(s2.side_to_play, self.color);
-                score += s2.all_moves().len() as i64;
-                score -= 2 * material_value(s.get_piece(requested.from).unwrap().kind);
+                s2.make_move(taken);
+                score -= evaluate(&s2, 2);
             }
+            info!("candidate {:?} {}   ({} left)", requested, score, candidates.len() - 1 - i);
             if score > best_score {
                 best_score = score;
                 best_move = Some(requested);
@@ -91,7 +88,9 @@ impl Player for GreedyPlayer {
         info!("taken move :    {:?}", taken);
         info!("capture square: {:?}", capture_square);
         self.infoset.my_move(requested, taken, capture_square);
-        info!("{:#?}", self.infoset.render());
+        // info!("{:#?}", self.infoset.render());
+        info!("{} possible states after my move", self.infoset.possible_states.len());
+        info!("{:#?}", self.infoset.fog_state.render());
     }
 }
 
@@ -104,4 +103,33 @@ fn material_value(k: PieceKind) -> i64 {
         PieceKind::Queen => 9,
         PieceKind::King => 20,
     }
+}
+
+fn evaluate(s: &BoardState, max_depth: i32) -> i64 {
+    let mut result = 0;
+    for i in 0..64 {
+        if let Some(p) = s.get_piece(Square(i)) {
+            let sign = if p.color == s.side_to_play { 1 } else { - 1};
+            result += 100 * sign * material_value(p.kind);
+        }
+    }
+    if max_depth == 0 {
+        return result;
+    }
+
+    let all_moves = s.all_moves();
+    result += all_moves.len() as i64;
+    let mut s2 = s.clone();
+    s2.make_move(None);
+    result -= s2.all_moves().len() as i64;
+
+    for m in all_moves {
+        let mut s2 = s.clone();
+        let cs = s2.make_move(Some(m));
+        if cs.is_none() {
+            continue;
+        }
+        result = result.max(-evaluate(&s2, max_depth - 1));
+    }
+    result
 }
