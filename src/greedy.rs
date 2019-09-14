@@ -57,7 +57,7 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
         info!("sense {:?} -> {:?}", sense, sense_result);
         self.infoset.sense(sense, sense_result);
-        dbg!(self.infoset.render());
+        info!("{:#?}", self.infoset.render());
     }
 
     fn choose_move(&mut self) -> Option<Move> {

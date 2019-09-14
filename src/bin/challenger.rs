@@ -59,7 +59,9 @@ fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<(), api::Error> 
 }
 
 fn main() {
-    env_logger::init();
+    let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
+    log::set_max_level(log::LevelFilter::Info);
+
     // let ai = rbc::ai_interface::RandomAi;
     let ai = rbc::greedy::GreedyAi;
 
@@ -70,7 +72,12 @@ fn main() {
         let opponent = &opponents[opponent];
         let color: Color = rand::thread_rng().gen_bool(0.5).into();
         let game_id = api::post_invitation(opponent, color).unwrap();
-        play_game(color, game_id, &ai).unwrap();
-        break;
+
+        std::fs::create_dir_all("logs").unwrap();
+        let f = std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap();
+        logger.with(rbc::logger::WriteLogger::new(f), || {
+            info!("challenger playing against {}", opponent);
+            play_game(color, game_id, &ai).unwrap();
+        });
     }
 }
