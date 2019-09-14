@@ -62,16 +62,19 @@ impl Player for GreedyPlayer {
 
     fn choose_move(&mut self) -> Option<Move> {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
-        let mut best_score = -1000000000;
+        let mut best_score = -1000000000.0;
         let mut best_move = None;
         let candidates = self.infoset.fog_state.all_sensible_requested_moves();
         for (i, &requested) in candidates.iter().enumerate() {
-            let mut score = 0;
+            let mut score = 0.0;
             for s in &self.infoset.possible_states {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
-                score -= evaluate(&s2, 3, -1000000000, 1000000000);
+                score -= evaluate(&s2, 3, -1000000000, 1000000000) as f32;
+            }
+            if !candidates.is_empty() {
+                score /= candidates.len() as f32;
             }
             info!("candidate {:?} {}   ({} left)", requested, score, candidates.len() - 1 - i);
             if score > best_score {
