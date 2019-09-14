@@ -42,27 +42,28 @@ impl<T: Log> MutLog for T {
     }
 }
 
-#[derive(Default)]
-pub struct StringLogger(String);
+pub struct WriteLogger<W: std::io::Write>(W);
 
-impl StringLogger {
-    pub fn new() -> Self {
-        Self::default()
+impl<W: std::io::Write> WriteLogger<W> {
+    pub fn new(w: W) -> Self {
+        WriteLogger(w)
     }
 
-    pub fn into_string(self) -> String {
+    pub fn into_inner(self) -> W {
         self.0
     }
 }
 
-impl MutLog for StringLogger {
+impl<W: std::io::Write + Send> MutLog for WriteLogger<W> {
     fn enabled(&mut self, _: &Metadata) -> bool { true }
 
     fn log(&mut self, record: &Record) {
-        self.0.push_str(&format!("{}  {}\n", level_to_char(record.level()), record.args()));
+        writeln!(self.0, "{}  {}", level_to_char(record.level()), record.args()).unwrap();
     }
 
-    fn flush(&mut self) {}
+    fn flush(&mut self) {
+        self.0.flush().unwrap();
+    }
 }
 
 trait AnyMutLog : MutLog {
@@ -86,9 +87,10 @@ impl ChangeableLogger {
     }
 
     pub fn capture_log<R>(&self, f: impl FnOnce() -> R) -> (String, R) {
-        let lg = StringLogger::new();
+        let lg = WriteLogger::new(Vec::<u8>::new());
         let (lg, result) = self.with(lg, f);
-        (lg.into_string(), result)
+        let buf = lg.into_inner();
+        (String::from_utf8(buf).unwrap(), result)
     }
 }
 
@@ -121,18 +123,18 @@ mod tests {
 
     #[test]
     fn test() {
-        let logger = init_changeable_logger(StringLogger::new());
+        let logger = init_changeable_logger(WriteLogger::new(std::io::sink()));
         log::set_max_level(log::LevelFilter::Info);
 
-        let (lg, res) = logger.with(StringLogger::new(), || {
+        let (lg, res) = logger.capture_log(|| {
             info!("hello");
-            let (lg2, _) = logger.with(StringLogger::new(), || {
+            let (lg2, _) = logger.capture_log(|| {
                 info!("inner");
             });
             info!("bye");
-            lg2.into_string()
+            lg2
         });
-        assert_eq!(lg.into_string(), "I  hello\nI  bye\n");
+        assert_eq!(lg, "I  hello\nI  bye\n");
         assert_eq!(res, "I  inner\n");
     }
 }
