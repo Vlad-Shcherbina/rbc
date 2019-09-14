@@ -40,7 +40,7 @@ impl Player for GreedyPlayer {
             let mut line = String::new();
             for file in 1..7 {
                 let sq = Square(rank * 8 + file);
-                let e = self.infoset.sense_entropy(sq);
+                let e = self.infoset.sense_entropy(sq) + self.rng.gen_range(0.0, 1e-4);
                 line.push_str(&format!("{:>7.2}", e));
                 if e > best_sense_rank {
                     best_sense_rank = e;
@@ -77,6 +77,7 @@ impl Player for GreedyPlayer {
                 score /= candidates.len() as f32;
             }
             info!("candidate {:?} {}   ({} left)", requested, score, candidates.len() - 1 - i);
+            score += self.rng.gen_range(0.0, 1e-4);
             if score > best_score {
                 best_score = score;
                 best_move = Some(requested);
