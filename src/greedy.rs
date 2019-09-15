@@ -70,12 +70,20 @@ impl Player for GreedyPlayer {
 
         let mut eval_hash = std::collections::HashMap::new();
 
+        let depth = if n < 1000 {
+            3
+        } else if n < 5000 {
+            2
+        } else {
+            1
+        };
+
         for (i, &requested) in candidates.iter().enumerate() {
             for (j, s) in self.infoset.possible_states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
-                let e = *eval_hash.entry(s2.clone()).or_insert_with(|| evaluate(&s2, 3, -3000, 3000));
+                let e = *eval_hash.entry(s2.clone()).or_insert_with(|| evaluate(&s2, depth, -3000, 3000));
                 payoff[i * n + j] = -e as f64;
             }
             info!("{} rows left", m - 1 - i);
