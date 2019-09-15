@@ -62,28 +62,47 @@ impl Player for GreedyPlayer {
 
     fn choose_move(&mut self) -> Option<Move> {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
-        let mut best_score = -1000000000.0;
-        let mut best_move = None;
+
         let candidates = self.infoset.fog_state.all_sensible_requested_moves();
+        let m = candidates.len();
+        let n = self.infoset.possible_states.len();
+        let mut payoff = vec![0f64; m * n];
+
+        let mut eval_hash = std::collections::HashMap::new();
+
         for (i, &requested) in candidates.iter().enumerate() {
-            let mut score = 0.0;
-            for s in &self.infoset.possible_states {
+            for (j, s) in self.infoset.possible_states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
-                score -= evaluate(&s2, 3, -1000000000, 1000000000) as f32;
+                let e = *eval_hash.entry(s2.clone()).or_insert_with(|| evaluate(&s2, 3, -3000, 3000));
+                payoff[i * n + j] = -e as f64;
             }
-            if !candidates.is_empty() {
-                score /= candidates.len() as f32;
-            }
-            info!("candidate {:?} {}   ({} left)", requested, score, candidates.len() - 1 - i);
-            score += self.rng.gen_range(0.0, 1e-4);
-            if score > best_score {
-                best_score = score;
-                best_move = Some(requested);
-            }
+            info!("{} rows left", m - 1 - i);
         }
-        best_move
+        info!("eval_hash size: {}", eval_hash.len());
+        info!("solving...");
+        let sol = fictitious_play(m, n, &payoff, 100000);
+        let mut ix: Vec<usize> = (0..n).collect();
+        ix.sort_by(|&j1, &j2| sol.strategy2[j2].partial_cmp(&sol.strategy2[j1]).unwrap());
+        for j in ix {
+            if sol.strategy2[j] < 0.1 {
+                break;
+            }
+            info!("dangerous: {} {:#?}", sol.strategy2[j], self.infoset.possible_states[j].render());
+        }
+        info!("game value: {}", sol.game_value);
+        let mut ix: Vec<usize> = (0..m).collect();
+        ix.sort_by(|&j1, &j2| sol.strategy1[j2].partial_cmp(&sol.strategy1[j1]).unwrap());
+        for i in ix {
+            if sol.strategy1[i] < 1e-3 {
+                break;
+            }
+            info!("good move: {} {}", candidates[i].to_uci(), sol.strategy1[i]);
+        }
+
+        let dist = rand::distributions::WeightedIndex::new(&sol.strategy1).unwrap();
+        Some(candidates[dist.sample(&mut self.rng)])
     }
 
     fn handle_move(&mut self, requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>) {
@@ -95,6 +114,67 @@ impl Player for GreedyPlayer {
         // info!("{:#?}", self.infoset.render());
         info!("{} possible states after my move", self.infoset.possible_states.len());
         info!("{:#?}", self.infoset.fog_state.render());
+    }
+}
+
+pub struct Solution {
+    pub game_value: f64,
+    pub strategy1: Vec<f64>,
+    pub strategy2: Vec<f64>,
+}
+
+pub fn fictitious_play(m: usize, n: usize, a: &[f64], num_steps: i32) -> Solution {
+    let mut strategy1 = vec![0f64; m];
+    let mut strategy2 = vec![0f64; n];
+
+    let mut vals1 = vec![0f64; m];
+    let mut vals2 = vec![0f64; n];
+
+    for _ in 0..num_steps {
+        {
+            let mut best = 0;
+            for i in 1..m {
+                if vals1[i] > vals1[best] {
+                    best = i;
+                }
+            }
+            for j in 0..n {
+                vals2[j] += a[best * n + j];
+            }
+            strategy1[best] += 1.0;
+        }
+        {
+            let mut best = 0;
+            for j in 1..n {
+                if vals2[j] < vals2[best] {
+                    best = j;
+                }
+            }
+            for i in 0..m {
+                vals1[i] += a[i * n + best];
+            }
+            strategy2[best] += 1.0;
+        }
+    }
+
+    let inv = 1.0 / num_steps as f64;
+    for p in &mut strategy1 {
+        *p *= inv;
+    }
+    for p in &mut strategy2 {
+        *p *= inv;
+    }
+    let mut game_value = 0.0;
+    for i in 0..m {
+        for j in 0..n {
+            game_value += a[i * n + j] * strategy1[i] * strategy2[j];
+        }
+    }
+
+    Solution {
+        game_value,
+        strategy1,
+        strategy2,
     }
 }
 
@@ -113,11 +193,27 @@ fn evaluate(s: &BoardState, max_depth: i32, mut alpha: i64, beta: i64) -> i64 {
     assert!(alpha <= beta);
 
     let mut static_val = 0;
+    let mut my_king = false;
+    let mut opp_king = false;
     for i in 0..64 {
         if let Some(p) = s.get_piece(Square(i)) {
             let sign = if p.color == s.side_to_play { 1 } else { - 1};
             static_val += 100 * sign * material_value(p.kind);
+            if p.kind == PieceKind::King {
+                if p.color == s.side_to_play {
+                    my_king = true;
+                } else {
+                    opp_king = true;
+                }
+            }
         }
+    }
+    assert!(my_king || opp_king);
+    if !opp_king {
+        return beta;
+    }
+    if !my_king {
+        return alpha;
     }
 
     let all_moves = s.all_moves();
