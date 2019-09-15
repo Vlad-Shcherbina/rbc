@@ -47,11 +47,7 @@ impl BoardState {
     #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
     pub fn make_move(&mut self, m: Option<Move>) -> Option<Square> {
-        self.side_to_play = match self.side_to_play {
-            Color::White => Color::Black,
-            Color::Black => { self.fullmove_number += 1; Color::White },
-        };
-        self.halfmove_clock += 1;
+        self.side_to_play = self.side_to_play.opposite();
         let m = match m {
             Some(m) => m,
             None => {
@@ -83,7 +79,6 @@ impl BoardState {
                 if m.to.0 < 8 || m.to.0 >= 56 {
                     p.as_mut().unwrap().kind = m.promotion.unwrap();
                 }
-                self.halfmove_clock = 0;
 
                 if m.to.0 == m.from.0 - 16 {
                     self.en_passant_square = Some(Square(m.from.0 - 8));
@@ -97,10 +92,7 @@ impl BoardState {
             }
             None => panic!()
         }
-        let captured_piece = self.replace_piece(m.to, p);
-        if captured_piece.is_some() {
-            self.halfmove_clock = 0;
-        }
+        self.replace_piece(m.to, p);
 
         if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 6 {
             assert!(self.white_can_oo);

@@ -221,8 +221,6 @@ pub struct BoardState {
     pub black_can_oo: bool,
     pub black_can_ooo: bool,
     pub en_passant_square: Option<Square>,
-    pub halfmove_clock: i32,
-    pub fullmove_number: i32,
 }
 
 impl From<fen::BoardState> for BoardState {
@@ -235,8 +233,6 @@ impl From<fen::BoardState> for BoardState {
             black_can_oo: b.black_can_oo,
             black_can_ooo: b.black_can_ooo,
             en_passant_square: b.en_passant_square.map(|s| Square(s as i8)),
-            halfmove_clock: b.halfmove_clock as i32,
-            fullmove_number: b.fullmove_number as i32,
         };
         for (i, p) in b.pieces.into_iter().enumerate() {
             result.replace_piece(Square(i as i8), p.map(Piece::from));
@@ -284,8 +280,6 @@ impl BoardState {
             }
         }
         self.en_passant_square = None;
-        self.halfmove_clock = -1;
-        self.fullmove_number = -1;
         match color {
             Color::White => {
                 self.black_can_oo = true;
