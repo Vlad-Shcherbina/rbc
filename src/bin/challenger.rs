@@ -131,8 +131,22 @@ fn main() {
     let max_threads: usize = args[1].parse().unwrap();
     let mut thread_by_game_id = std::collections::HashMap::new();
 
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let running = std::sync::Arc::new(AtomicBool::new(true));
+    ctrlc::set_handler({
+        let running = running.clone();
+        move || {
+            // logging won't work here because it's a separate thread
+            println!("Ctrl-C, entering lame duck mode");
+            running.store(false, Ordering::SeqCst);
+        }
+    }).unwrap();
+
+    info!("**********************");
+    println!("**********************");
+
     loop {
-        while thread_by_game_id.len() < max_threads {
+        while running.load(Ordering::SeqCst) && thread_by_game_id.len() < max_threads {
             let mut opponents = api::list_users().unwrap();
             opponents.retain(|o| o != "DotModus_Chris");  // hangs
             let opponent = rand::thread_rng().gen_range(0, opponents.len());
@@ -156,10 +170,19 @@ fn main() {
             thread_by_game_id.insert(game_id, t);
         }
 
+        if !running.load(Ordering::SeqCst) && thread_by_game_id.is_empty() {
+            break;
+        }
+
         let (game_id, message) = rx.recv().unwrap();
         info!("{}", message);
         let t = thread_by_game_id.remove(&game_id).unwrap();
         t.join().unwrap();
         println!("{}", message);
+        if !running.load(Ordering::SeqCst) {
+            info!("in lame duck mode, not challenging any more");
+        }
     }
+    info!("finished");
+    println!("finished");
 }
