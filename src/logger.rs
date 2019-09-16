@@ -18,7 +18,7 @@ impl Log for SimpleLogger {
     fn enabled(&self, _: &Metadata) -> bool { true }
 
     fn log(&self, record: &Record) {
-        eprintln!("{} {}", level_to_char(record.level()), record.args());
+        eprintln!("{}  {}", level_to_char(record.level()), record.args());
     }
 
     fn flush(&self) {}
@@ -58,7 +58,10 @@ impl<W: std::io::Write + Send> MutLog for WriteLogger<W> {
     fn enabled(&mut self, _: &Metadata) -> bool { true }
 
     fn log(&mut self, record: &Record) {
-        writeln!(self.0, "{}  {}", level_to_char(record.level()), record.args()).unwrap();
+        writeln!(self.0, "{}  {}  {}",
+            level_to_char(record.level()),
+            chrono::offset::Utc::now().format("%m-%d %H:%M:%S%.3f"),
+            record.args()).unwrap();
     }
 
     fn flush(&mut self) {
@@ -114,27 +117,4 @@ pub fn init_changeable_logger<L: MutLog + 'static>(logger: L) -> &'static Change
     let c = Box::leak(c);
     log::set_logger(c).unwrap();
     c
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use log::info;
-
-    #[test]
-    fn test() {
-        let logger = init_changeable_logger(WriteLogger::new(std::io::sink()));
-        log::set_max_level(log::LevelFilter::Info);
-
-        let (lg, res) = logger.capture_log(|| {
-            info!("hello");
-            let (lg2, _) = logger.capture_log(|| {
-                info!("inner");
-            });
-            info!("bye");
-            lg2
-        });
-        assert_eq!(lg, "I  hello\nI  bye\n");
-        assert_eq!(res, "I  inner\n");
-    }
 }
