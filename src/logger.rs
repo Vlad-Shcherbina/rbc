@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use std::cell::RefCell;
 use std::any::Any;
 use log::{Metadata, Level, Record, Log};
 
@@ -69,7 +70,7 @@ impl<W: std::io::Write + Send> MutLog for WriteLogger<W> {
     }
 }
 
-trait AnyMutLog : MutLog {
+pub trait AnyMutLog : MutLog {
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
@@ -117,4 +118,43 @@ pub fn init_changeable_logger<L: MutLog + 'static>(logger: L) -> &'static Change
     let c = Box::leak(c);
     log::set_logger(c).unwrap();
     c
+}
+
+pub struct ThreadLocalLogger;
+
+impl ThreadLocalLogger {
+    thread_local!(static LOGGER: RefCell<Box<dyn AnyMutLog>> = RefCell::new(Box::new(SimpleLogger)));
+
+    pub fn replace(new_logger: Box<dyn AnyMutLog>) -> Box<dyn AnyMutLog> {
+        ThreadLocalLogger::LOGGER.with(|logger| {
+            std::mem::replace(&mut *logger.borrow_mut(), new_logger)
+        })
+    }
+
+    pub fn with<L: MutLog + 'static, R>(logger: L, f: impl FnOnce() -> R) -> (L, R) {
+        let old = Self::replace(Box::new(logger));
+        let result = f();
+        let l = Self::replace(old);
+        (*l.into_any().downcast().unwrap(), result)
+    }
+}
+
+impl Log for ThreadLocalLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        ThreadLocalLogger::LOGGER.with(|logger| {
+            logger.borrow_mut().enabled(metadata)
+        })
+    }
+
+    fn log(&self, record: &Record) {
+        ThreadLocalLogger::LOGGER.with(|logger| {
+            logger.borrow_mut().log(record);
+        });
+    }
+
+    fn flush(&self) {
+        ThreadLocalLogger::LOGGER.with(|logger| {
+            logger.borrow_mut().flush();
+        });
+    }
 }
