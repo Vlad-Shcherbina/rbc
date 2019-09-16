@@ -4,6 +4,7 @@ use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
 use crate::ai_interface::{Ai, Player};
 use crate::infoset::Infoset;
 
+#[derive(Clone)]
 pub struct GreedyAi;
 
 impl Ai for GreedyAi {

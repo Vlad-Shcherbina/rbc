@@ -14,6 +14,7 @@ pub trait Player {
     fn handle_move(&mut self, requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>);
 }
 
+#[derive(Clone)]
 pub struct RandomAi {
     pub delay: u64,
 }

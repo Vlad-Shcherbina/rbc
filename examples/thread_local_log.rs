@@ -2,7 +2,7 @@ use log::info;
 use rbc::logger::{WriteLogger, ThreadLocalLogger};
 
 fn main() {
-    log::set_logger(&ThreadLocalLogger);
+    log::set_logger(&ThreadLocalLogger).unwrap();
     log::set_max_level(log::LevelFilter::Info);
 
     info!("hi");

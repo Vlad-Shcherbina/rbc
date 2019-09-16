@@ -3,8 +3,9 @@ use rand::Rng;
 use rbc::game::{Color, Move};
 use rbc::api;
 use rbc::ai_interface::Ai;
+use rbc::logger::{ThreadLocalLogger, WriteLogger};
 
-fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<(), api::Error> {
+fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<String, api::Error> {
     let seed = rand::thread_rng().gen();
     info!("player seed: {}", seed);
     let mut player = ai.make_player(color, seed);
@@ -88,39 +89,78 @@ fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<(), api::Error> 
         // std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    let winner = api::winner_color(game_id).expect("TODO");
-    let win_reason = api::win_reason(game_id).expect("TODO");
-    if color == winner {
-        info!("I won game {} ({})", game_id, win_reason);
-    } else {
-        info!("I lost game {} ({})", game_id, win_reason);
-    }
+    let h = api::game_history_raw(game_id).expect("TODO");
+    let h: api::GameHistoryResponse = serde_json::from_str(&h).expect("TODO");
+    let h = h.game_history;
+    let opponent_name = match color {
+        Color::White => h.black_name,
+        Color::Black => h.white_name,
+    };
 
-    Ok(())
+    let outcome = match h.winner_color {
+        None => "draw",
+        Some(c) if color == c => "won",
+        _ => "lost",
+    };
+    let message = format!("{}: {} against {} ({})", game_id, outcome, opponent_name, h.win_reason.0);
+    info!("{}", message);
+    Ok(message)
 }
 
 fn main() {
-    let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
+    log::set_logger(&ThreadLocalLogger).unwrap();
     log::set_max_level(log::LevelFilter::Info);
+
+    std::fs::create_dir_all("logs").unwrap();
+    ThreadLocalLogger::replace(Box::new(WriteLogger::new(
+        std::fs::File::create("logs/challenger_main.info").unwrap()
+    )));
 
     // let ai = rbc::ai_interface::RandomAi {
     //     delay: 60,
     // };
     let ai = rbc::greedy::GreedyAi;
 
-    loop {
-        let mut opponents = api::list_users().unwrap();
-        opponents.retain(|o| o != "DotModus_Chris");  // hangs
-        let opponent = rand::thread_rng().gen_range(0, opponents.len());
-        let opponent = &opponents[opponent];
-        let color: Color = rand::thread_rng().gen_bool(0.5).into();
-        let game_id = api::post_invitation(opponent, color).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
 
-        std::fs::create_dir_all("logs").unwrap();
-        let f = std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap();
-        logger.with(rbc::logger::WriteLogger::new(f), || {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2 {
+        eprintln!("usage:");
+        eprintln!("    challenger <max_threads>");
+        std::process::exit(1);
+    }
+    let max_threads: usize = args[1].parse().unwrap();
+    let mut thread_by_game_id = std::collections::HashMap::new();
+
+    loop {
+        while thread_by_game_id.len() < max_threads {
+            let mut opponents = api::list_users().unwrap();
+            opponents.retain(|o| o != "DotModus_Chris");  // hangs
+            let opponent = rand::thread_rng().gen_range(0, opponents.len());
+            let opponent = &opponents[opponent];
+            let color: Color = rand::thread_rng().gen_bool(0.5).into();
+            let game_id = api::post_invitation(opponent, color).unwrap();
+
             info!("challenger playing against {}", opponent);
-            play_game(color, game_id, &ai).unwrap();
-        });
+            println!("{}: challenge {}", game_id, opponent);
+            let t = std::thread::spawn({
+                let ai = ai.clone();
+                let tx = tx.clone();
+                move || {
+                    ThreadLocalLogger::replace(Box::new(WriteLogger::new(
+                        std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap()
+                    )));
+                    let message = play_game(color, game_id, &ai).expect("TODO");
+                    tx.send((game_id, message)).unwrap();
+                }
+            });
+            thread_by_game_id.insert(game_id, t);
+        }
+
+        let (game_id, message) = rx.recv().unwrap();
+        info!("{}", message);
+        let t = thread_by_game_id.remove(&game_id).unwrap();
+        t.join().unwrap();
+        println!("{}", message);
     }
 }
