@@ -1,4 +1,5 @@
 use rand::prelude::*;
+use log::info;
 use crate::game::{STARTING_FEN, Square, Color, Piece, Move, BoardState};
 
 pub trait Ai {
@@ -13,7 +14,9 @@ pub trait Player {
     fn handle_move(&mut self, requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>);
 }
 
-pub struct RandomAi;
+pub struct RandomAi {
+    pub delay: u64,
+}
 
 impl Ai for RandomAi {
     fn make_player(&self, color: Color, seed: u64) -> Box<dyn Player> {
@@ -21,6 +24,7 @@ impl Ai for RandomAi {
         state.fog_of_war(color);
         Box::new(RandomPlayer {
             rng: StdRng::seed_from_u64(seed),
+            delay: self.delay,
             color,
             state,
         })
@@ -29,6 +33,7 @@ impl Ai for RandomAi {
 
 struct RandomPlayer {
     rng: StdRng,
+    delay: u64,
     color: Color,
     state: BoardState,
 }
@@ -36,21 +41,29 @@ struct RandomPlayer {
 impl Player for RandomPlayer {
     fn handle_opponent_move(&mut self, capture_square: Option<Square>) {
         assert!(self.color != self.state.side_to_play);
+        std::thread::sleep(std::time::Duration::from_secs(
+            self.rng.gen_range(0, self.delay + 1)));
         self.state.make_move_under_fog(capture_square);
     }
 
     fn choose_sense(&mut self) -> Square {
         assert_eq!(self.color, self.state.side_to_play);
+        std::thread::sleep(std::time::Duration::from_secs(
+            self.rng.gen_range(0, self.delay + 1)));
         Square(self.rng.gen_range(0, 64))
     }
 
     fn handle_sense(&mut self, _sense: Square, _sense_result: &[(Square, Option<Piece>)]) {
         assert_eq!(self.color, self.state.side_to_play);
-        dbg!(self.state.render());
+        std::thread::sleep(std::time::Duration::from_secs(
+            self.rng.gen_range(0, self.delay + 1)));
+        info!("after sense: {:#?}", self.state.render());
     }
 
     fn choose_move(&mut self) -> Option<Move> {
         assert_eq!(self.color, self.state.side_to_play);
+        std::thread::sleep(std::time::Duration::from_secs(
+            self.rng.gen_range(0, self.delay + 1)));
         if self.rng.gen_bool(0.5) {
             Some(random_move(&mut self.rng, &self.state))
         } else {
@@ -63,7 +76,9 @@ impl Player for RandomPlayer {
         assert_eq!(self.color, self.state.side_to_play);
         self.state.make_move(taken);
         self.state.fog_of_war(self.color);
-        dbg!(self.state.render());
+        info!("after move: {:#?}", self.state.render());
+        std::thread::sleep(std::time::Duration::from_secs(
+            self.rng.gen_range(0, self.delay + 1)));
     }
 }
 
