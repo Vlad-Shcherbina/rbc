@@ -111,7 +111,6 @@ fn main() {
     log::set_logger(&ThreadLocalLogger).unwrap();
     log::set_max_level(log::LevelFilter::Info);
 
-    std::fs::create_dir_all("logs").unwrap();
     ThreadLocalLogger::replace(Box::new(WriteLogger::new(
         std::fs::File::create("logs/challenger_main.info").unwrap()
     )));
