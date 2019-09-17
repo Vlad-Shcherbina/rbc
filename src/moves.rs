@@ -1,11 +1,18 @@
 use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
 
-const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
+const PROMOTION_TARGETS_WITH_NONE: &[Option<PieceKind>] = &[
     Some(PieceKind::Knight),
     Some(PieceKind::Bishop),
     Some(PieceKind::Rook),
     Some(PieceKind::Queen),
     None,
+];
+
+const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
+    Some(PieceKind::Knight),
+    Some(PieceKind::Bishop),
+    Some(PieceKind::Rook),
+    Some(PieceKind::Queen),
 ];
 
 impl BoardState {
@@ -180,7 +187,7 @@ impl BoardState {
                     assert!(0 <= rank + dr && rank + dr < 8);
                     if self.get_piece(Square(from.0 + 8 * dr)).is_none() {
                         let promotion_targets = if rank == promotion_rank {
-                            PROMOTION_TARGETS
+                            PROMOTION_TARGETS_WITH_NONE
                         } else {
                             &[None]
                         };
@@ -206,7 +213,7 @@ impl BoardState {
                         let to = Square((rank + dr) * 8 + file + df);
                         if self.get_piece(to).is_none() {
                             let promotion_targets = if rank + dr == 0 || rank + dr == 7 {
-                                PROMOTION_TARGETS
+                                PROMOTION_TARGETS_WITH_NONE
                             } else {
                                 &[None]
                             };
@@ -264,6 +271,7 @@ impl BoardState {
                 }
             }
         }
+        // TODO: dedup (anchor:EJahPttWSGBsjB)
         match self.side_to_play {
             Color::White => {
                 if self.white_can_oo &&
@@ -385,8 +393,7 @@ impl BoardState {
     }
 
     #[inline(never)]
-    pub fn all_moves(&self) -> Vec<Move> {
-        // TODO: inefficient
+    pub fn all_moves_naive(&self) -> Vec<Move> {
         let mut fog_state = self.clone();
         fog_state.fog_of_war(self.side_to_play);
 
@@ -398,5 +405,154 @@ impl BoardState {
         let mut seen = std::collections::HashSet::with_capacity(moves.len());
         moves.retain(|m| seen.insert(*m));
         moves
+    }
+
+    #[inline(never)]
+    pub fn all_moves(&self) -> Vec<Move> {
+        let mut result = Vec::with_capacity(128);
+        for from in 0..64 {
+            let from = Square(from);
+            let p = self.get_piece(from);
+            if p.is_none() {
+                continue;
+            }
+            let p = p.unwrap();
+            if p.color != self.side_to_play {
+                continue;
+            }
+            match p.kind {
+                PieceKind::Pawn => {
+                    let rank = from.0 / 8;
+                    let file = from.0 % 8;
+                    let (dr, home_rank, promotion_rank) = match self.side_to_play {
+                        Color::White => (1, 1, 6),
+                        Color::Black => (-1, 6, 1),
+                    };
+
+                    assert!(0 <= rank + dr && rank + dr < 8);
+                    if self.get_piece(Square(from.0 + 8 * dr)).is_none() {
+                        let promotion_targets = if rank == promotion_rank {
+                            PROMOTION_TARGETS
+                        } else {
+                            &[None]
+                        };
+                        for &promotion in promotion_targets {
+                            result.push(Move {
+                                from,
+                                to: Square(from.0 + 8 * dr),
+                                promotion,
+                            });
+                        }
+                        if rank == home_rank && self.get_piece(Square(from.0 + 16 * dr)).is_none() {
+                            result.push(Move {
+                                from,
+                                to: Square(from.0 + 16 * dr),
+                                promotion: None,
+                            });
+                        }
+                    }
+                    for df in &[-1, 1] {
+                        if file + df < 0 || file + df >= 8 {
+                            continue;
+                        }
+                        let to = Square((rank + dr) * 8 + file + df);
+                        let can_capture = Some(to) == self.en_passant_square || {
+                            self.get_piece(to).map_or(false, |p| p.color != self.side_to_play)
+                        };
+                        if can_capture {
+                            let promotion_targets = if rank + dr == 0 || rank + dr == 7 {
+                                PROMOTION_TARGETS
+                            } else {
+                                &[None]
+                            };
+                            for &promotion in promotion_targets {
+                                result.push(Move { from, to, promotion });
+                            }
+                        }
+                    }
+                }
+                PieceKind::Knight |
+                PieceKind::King => {
+                    let dirs: &[_] = match p.kind {
+                        PieceKind::Knight => &[(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)],
+                        PieceKind::King => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        _ => unreachable!(),
+                    };
+                    for &(dr, df) in dirs {
+                        let r = from.0 / 8 + dr;
+                        let f = from.0 % 8 + df;
+                        if r < 0 || r >= 8 || f < 0 || f >= 8 {
+                            continue;
+                        }
+                        let to = Square(r * 8 + f);
+                        if let Some(cap) = self.get_piece(to) {
+                            if cap.color == self.side_to_play {
+                                continue;
+                            }
+                        }
+                        result.push(Move { from, to, promotion: None });
+                    }
+                }
+                PieceKind::Bishop |
+                PieceKind::Rook |
+                PieceKind::Queen => {
+                    let dirs: &[_] = match p.kind {
+                        PieceKind::Bishop => &[(-1, -1), (-1, 1), (1, -1), (1, 1)],
+                        PieceKind::Rook => &[(-1, 0), (0, -1), (0, 1), (1, 0)],
+                        PieceKind::Queen => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        _ => unreachable!(),
+                    };
+                    for &(dr, df) in dirs {
+                        let mut r = from.0 / 8;
+                        let mut f = from.0 % 8;
+                        loop {
+                            r += dr;
+                            f += df;
+                            if r < 0 || r >= 8 || f < 0 || f >= 8 {
+                                break;
+                            }
+                            let to = Square(r * 8 + f);
+                            if let Some(cap) = self.get_piece(to) {
+                                if cap.color != self.side_to_play {
+                                    result.push(Move { from, to, promotion: None });
+                                }
+                                break;
+                            }
+                            result.push(Move { from, to, promotion: None });
+                        }
+                    }
+                }
+            }
+        }
+        // TODO: dedup (anchor:EJahPttWSGBsjB)
+        match self.side_to_play {
+            Color::White => {
+                if self.white_can_oo &&
+                   self.get_piece(Square(5)).is_none() &&
+                   self.get_piece(Square(6)).is_none() {
+                    result.push(Move { from: Square(4), to: Square(6), promotion: None });
+                }
+                if self.white_can_ooo &&
+                   self.get_piece(Square(1)).is_none() &&
+                   self.get_piece(Square(2)).is_none() &&
+                   self.get_piece(Square(3)).is_none() {
+                    result.push(Move { from: Square(4), to: Square(2), promotion: None });
+                }
+            }
+            Color::Black => {
+                if self.black_can_oo &&
+                   self.get_piece(Square(56 + 5)).is_none() &&
+                   self.get_piece(Square(56 + 6)).is_none() {
+                    result.push(Move { from: Square(56 + 4), to: Square(56 + 6), promotion: None });
+                }
+                if self.black_can_ooo &&
+                   self.get_piece(Square(56 + 1)).is_none() &&
+                   self.get_piece(Square(56 + 2)).is_none() &&
+                   self.get_piece(Square(56 + 3)).is_none() {
+                    result.push(Move { from: Square(56 + 4), to: Square(56 + 2), promotion: None });
+                }
+            }
+        }
+        result
     }
 }

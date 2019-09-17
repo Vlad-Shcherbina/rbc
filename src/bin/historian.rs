@@ -32,6 +32,15 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
             m.taken_move.as_ref().map_or("--", String::as_ref),
         );
         let taken_move = m.taken_move.as_ref().map(|s| Move::from_uci(s));
+
+        use std::collections::HashSet;
+        let all_moves: HashSet<_> = state.all_moves().into_iter().collect();
+        let all_moves_naive: HashSet<_> = state.all_moves_naive().into_iter().collect();
+        assert_eq!(all_moves, all_moves_naive);
+        if let Some(m) = taken_move {
+            assert!(all_moves.contains(&m), "{:?}", m);
+        }
+
         let capture_square = state.make_move(taken_move);
         assert_eq!(capture_square, m.capture_square);
         if forgiving_en_passant &&
