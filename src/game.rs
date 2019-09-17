@@ -306,7 +306,7 @@ impl BoardState {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Move {
     pub from: Square,
     pub to: Square,
@@ -335,6 +335,12 @@ impl Move {
             result.push(p.to_char());
         }
         result
+    }
+}
+
+impl std::fmt::Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_uci())
     }
 }
 
