@@ -12,6 +12,7 @@ pub trait Player {
     fn handle_sense(&mut self, sense: Square, sense_result: &[(Square, Option<Piece>)]);
     fn choose_move(&mut self) -> Option<Move>;
     fn handle_move(&mut self, requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>);
+    fn get_summary(&self) -> String;
 }
 
 #[derive(Clone)]
@@ -80,6 +81,10 @@ impl Player for RandomPlayer {
         info!("after move: {:#?}", self.state.render());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
+    }
+
+    fn get_summary(&self) -> String {
+        String::new()
     }
 }
 

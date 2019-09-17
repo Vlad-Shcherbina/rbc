@@ -1,3 +1,4 @@
+use std::io::Write;
 use log::info;
 use rand::prelude::*;
 use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
@@ -14,6 +15,7 @@ impl Ai for GreedyAi {
             rng: StdRng::seed_from_u64(seed),
             color,
             infoset,
+            summary: Vec::new(),
         })
     }
 }
@@ -22,6 +24,7 @@ struct GreedyPlayer {
     rng: StdRng,
     color: Color,
     infoset: Infoset,
+    summary: Vec<u8>,
 }
 
 impl Player for GreedyPlayer {
@@ -29,12 +32,13 @@ impl Player for GreedyPlayer {
         assert!(self.color != self.infoset.fog_state.side_to_play);
         info!("opp capture: {:?}", capture_square);
         self.infoset.opponent_move(capture_square);
-        // info!("{:#?}", self.infoset.render());
         info!("{} possible states after capture", self.infoset.possible_states.len());
     }
 
     fn choose_sense(&mut self) -> Square {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
+        write!(self.summary, "{:>6}", self.infoset.possible_states.len()).unwrap();
+        let timer = std::time::Instant::now();
         let mut best_sense_rank = -1.0;
         let mut best_sense = Square(0);
         for rank in (1..7).rev() {
@@ -51,6 +55,7 @@ impl Player for GreedyPlayer {
             info!("entropy: {}", line)
         }
         info!("best sense: {:?} {:.3}", best_sense, best_sense_rank);
+        write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         best_sense
     }
 
@@ -59,10 +64,12 @@ impl Player for GreedyPlayer {
         info!("sense {:?} -> {:?}", sense, sense_result);
         self.infoset.sense(sense, sense_result);
         info!("{:#?}", self.infoset.render());
+        write!(self.summary, " {:>5}", self.infoset.possible_states.len()).unwrap();
     }
 
     fn choose_move(&mut self) -> Option<Move> {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
+        let timer = std::time::Instant::now();
 
         let candidates = self.infoset.fog_state.all_sensible_requested_moves();
         let m = candidates.len();
@@ -111,6 +118,8 @@ impl Player for GreedyPlayer {
         }
 
         let dist = rand::distributions::WeightedIndex::new(&sol.strategy1).unwrap();
+        write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
+
         Some(candidates[dist.sample(&mut self.rng)])
     }
 
@@ -120,9 +129,13 @@ impl Player for GreedyPlayer {
         info!("taken move :    {:?}", taken);
         info!("capture square: {:?}", capture_square);
         self.infoset.my_move(requested, taken, capture_square);
-        // info!("{:#?}", self.infoset.render());
         info!("{} possible states after my move", self.infoset.possible_states.len());
         info!("{:#?}", self.infoset.fog_state.render());
+        writeln!(self.summary, " {:>5}", self.infoset.possible_states.len()).unwrap();
+    }
+
+    fn get_summary(&self) -> String {
+        String::from_utf8(self.summary.clone()).unwrap()
     }
 }
 

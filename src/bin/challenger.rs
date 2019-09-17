@@ -103,6 +103,7 @@ fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> Result<String, api::Err
         _ => "lost",
     };
     let message = format!("{}: {} against {} ({})", game_id, outcome, opponent_name, h.win_reason.0);
+    info!("summary:\n{}", player.get_summary());
     info!("{}", message);
     Ok(message)
 }
