@@ -112,7 +112,9 @@ fn main() {
     log::set_max_level(log::LevelFilter::Info);
 
     ThreadLocalLogger::replace(Box::new(WriteLogger::new(
-        std::fs::File::create("logs/challenger_main.info").unwrap()
+        std::fs::OpenOptions::new()
+        .create(true).append(true)
+        .open("logs/challenger_main.info").unwrap()
     )));
 
     // let ai = rbc::ai_interface::RandomAi {
@@ -137,6 +139,10 @@ fn main() {
         let running = running.clone();
         move || {
             // logging won't work here because it's a separate thread
+            if !running.load(Ordering::SeqCst) {
+                println!("exiting for real");
+                std::process::exit(1);
+            }
             println!("Ctrl-C, entering lame duck mode");
             running.store(false, Ordering::SeqCst);
         }
@@ -180,7 +186,7 @@ fn main() {
         t.join().unwrap();
         println!("{}", message);
         if !running.load(Ordering::SeqCst) {
-            info!("in lame duck mode, not challenging any more");
+            info!("in lame duck mode, not challenging anymore");
         }
     }
     info!("finished");
