@@ -9,7 +9,7 @@ pub struct Infoset {
 
 #[inline(never)]
 fn deduplicate(xs: &mut Vec<impl Eq + std::hash::Hash + Clone>) {
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::with_capacity(xs.len());
     xs.retain(|x| seen.insert(x.clone()));
 }
 

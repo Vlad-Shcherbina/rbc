@@ -159,7 +159,7 @@ impl BoardState {
     #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
     pub fn all_sensible_requested_moves(&self) -> Vec<Move> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(128);
         for from in 0..64 {
             let from = Square(from);
             let p = self.get_piece(from);
@@ -395,7 +395,7 @@ impl BoardState {
             .into_iter()
             .filter_map(|m| self.requested_to_taken(m))
             .collect();
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = std::collections::HashSet::with_capacity(moves.len());
         moves.retain(|m| seen.insert(*m));
         moves
     }
