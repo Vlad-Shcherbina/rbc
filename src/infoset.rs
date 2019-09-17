@@ -8,9 +8,9 @@ pub struct Infoset {
 }
 
 #[inline(never)]
-fn deduplicate(xs: &mut Vec<impl Eq + std::hash::Hash>) {
-    let seen: HashSet<_> = xs.drain(..).collect();
-    *xs = seen.into_iter().collect();
+fn deduplicate(xs: &mut Vec<impl Eq + std::hash::Hash + Clone>) {
+    let mut seen = HashSet::new();
+    xs.retain(|x| seen.insert(x.clone()));
 }
 
 impl Infoset {
@@ -79,9 +79,12 @@ impl Infoset {
             }
             *cnt.entry(fingerprint).or_default() += 1;
         }
+        let mut cnt: Vec<i32> = cnt.values().cloned().collect();
+        cnt.sort();  // to avoid HashMap nondeterminism
+
         let mut s = 0.0;
         let n = self.possible_states.len() as f64;
-        for &v in cnt.values() {
+        for v in cnt {
             let p = f64::from(v) / n;
             s -= p.log2() * p;
         }
