@@ -21,6 +21,7 @@ fn replay(h: &GameHistory, color: Color) -> usize {
             infoset.opponent_move(h.moves[move_number - 1].capture_square);
             info!("{:#?}", infoset.render());
         }
+        println!("{} possible states", infoset.possible_states.len());
         max_size = max_size.max(infoset.possible_states.len());
         let mut best_sense_rank = -1.0;
         let mut best_sense = Square(0);
