@@ -5,7 +5,7 @@ use rbc::api;
 use rbc::game::{Color, Move};
 use rbc::ai_interface::Ai;
 
-pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> String {
+pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let seed = rand::thread_rng().gen();
     info!("player seed: {}", seed);
     let mut player = ai.make_player(color, seed);
@@ -15,6 +15,9 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> String {
         Color::Black => 1,
     };
 
+    let timer = std::time::Instant::now();
+    let mut last_time_left = 900.0;
+
     loop {
         let gs = api::game_status(game_id).expect("TODO");
         if gs.is_over {
@@ -22,7 +25,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> String {
         }
         if gs.is_my_turn {
             match api::seconds_left(game_id) {
-                Ok(_) => {},
+                Ok(t) => last_time_left = t,
                 Err(api::Error::HttpError(400)) => {
                     let gs = api::game_status(game_id).expect("TODO");
                     assert!(gs.is_over);
@@ -98,18 +101,27 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> String {
     };
 
     let outcome = match h.winner_color {
-        None => "draw",
-        Some(c) if color == c => "won",
-        _ => "lost",
+        None => 'D',
+        Some(c) if color == c => 'W',
+        _ => 'L',
     };
-    let message = format!("{}: {} against {} ({})", game_id, outcome, opponent_name, h.win_reason.0);
+    let mut message = format!(
+        "{}: {} {}; {} moves; {:.0}s/{:.0}s",
+        game_id, opponent_name, h.win_reason.0,
+        halfmove_number,
+        900.0 - last_time_left, timer.elapsed().as_secs_f64());
+
+    if outcome != 'W' && !(opponent_name == "APL_Oracle" && h.win_reason.0 == "KING_CAPTURE") {
+        message.push_str("   !!!");
+    }
+
     info!("summary:\n{}", player.get_summary());
     info!("{}", message);
-    message
+    (outcome, message)
 }
 
 struct Slot {
-    t: std::thread::JoinHandle<()>,
+    t: std::thread::JoinHandle<(char, String)>,
     is_challenger: bool,
 }
 
@@ -183,8 +195,9 @@ fn main() {
                 ThreadLocalLogger::replace(Box::new(WriteLogger::new(
                     std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap()
                 )));
-                let message = play_game(color, game_id, &ai);
-                tx.send((slot_idx, message)).unwrap();
+                let (outcome, message) = play_game(color, game_id, &ai);
+                tx.send(slot_idx).unwrap();
+                (outcome, message)
             }
         });
         slots[slot_idx] = Some(Slot { t, is_challenger });
@@ -203,7 +216,7 @@ fn main() {
                 let color = api::game_color(game_id).expect("TODO");
                 let slot_idx = spawn_thread(&mut slots, game_id, color, false);
                 print_slots(&slots, slot_idx, '_');
-                println!("{}: accepting invitation", game_id);
+                println!("{}", game_id);
             }
             loop {
                 let num_challengers = slots.iter()
@@ -224,7 +237,7 @@ fn main() {
                 info!("challenger playing against {}", opponent);
                 let slot_idx = spawn_thread(&mut slots, game_id, color, true);
                 print_slots(&slots, slot_idx, '.');
-                println!("{}: challenge {}", game_id, opponent);
+                println!("{}: {}", game_id, opponent);
             }
         }
 
@@ -234,11 +247,11 @@ fn main() {
             }
             std::thread::sleep(std::time::Duration::from_secs(5));
         } else {
-            if let Ok((slot_idx, message)) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
-                info!("{}", message);
+            if let Ok(slot_idx) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
                 let slot = slots[slot_idx].take().unwrap();
-                slot.t.join().unwrap();
-                print_slots(&slots, slot_idx, '*');
+                let (outcome, message) = slot.t.join().unwrap();
+                info!("{}", message);
+                print_slots(&slots, slot_idx, outcome);
                 println!("{}", message);
 
                 while slots.len() > 5 && slots.last().unwrap().is_none() {
