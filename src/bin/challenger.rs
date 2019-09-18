@@ -51,7 +51,10 @@ fn main() {
     loop {
         while running.load(Ordering::SeqCst) && thread_by_game_id.len() < max_threads {
             let mut opponents = api::list_users().unwrap();
-            opponents.retain(|o| o != "DotModus_Chris");  // hangs
+            opponents.retain(|o|
+                o != "DotModus_Chris" &&  // hangs
+                o != "genetic"
+            );
             let opponent = rand::thread_rng().gen_range(0, opponents.len());
             let opponent = &opponents[opponent];
             let color: Color = rand::thread_rng().gen_bool(0.5).into();
@@ -77,6 +80,7 @@ fn main() {
             break;
         }
 
+        assert!(!thread_by_game_id.is_empty());
         let (game_id, message) = rx.recv().unwrap();
         info!("{}", message);
         let t = thread_by_game_id.remove(&game_id).unwrap();

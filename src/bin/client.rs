@@ -1,96 +1,84 @@
-use log::{info, error};
-
+use log::info;
+use rbc::logger::{ThreadLocalLogger, WriteLogger};
 use rbc::api;
 
 fn main() {
-    env_logger::init();
+    log::set_logger(&ThreadLocalLogger).unwrap();
+    log::set_max_level(log::LevelFilter::Info);
+
+    ThreadLocalLogger::replace(Box::new(WriteLogger::new(
+        std::fs::OpenOptions::new()
+        .create(true).append(true)
+        .open("logs/client_main.info").unwrap()
+    )));
+
+    let ai = rbc::greedy::GreedyAi;
 
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-
-    ctrlc::set_handler(move || {
-        info!("Ctrl-C, entering lame duck mode");
-        r.store(false, Ordering::SeqCst);
+    let running = std::sync::Arc::new(AtomicBool::new(true));
+    ctrlc::set_handler({
+        let running = running.clone();
+        move || {
+            // logging won't work here because it's a separate thread
+            if !running.load(Ordering::SeqCst) {
+                println!("exiting for real");
+                std::process::exit(1);
+            }
+            println!("Ctrl-C, entering lame duck mode");
+            running.store(false, Ordering::SeqCst);
+        }
     }).unwrap();
 
-    api::list_users().expect("TODO");
+    info!("**********************");
+    println!("**********************");
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
     let me = api::announce_myself().expect("TODO");
+    let max_threads = me.max_games as usize;
+    println!("{} max threads", max_threads);
+    let mut thread_by_game_id = std::collections::HashMap::new();
 
-    let mut game_ids: Vec<i32> = Vec::new();
     loop {
-        api::announce_myself().expect("TODO");
-        info!("active games: {:?}", game_ids);
+        if running.load(Ordering::SeqCst) {
+            if thread_by_game_id.len() < max_threads {
+                api::announce_myself().expect("TODO");
+            }
+            for inv_id in api::list_invitations().expect("TODO") {
+                let game_id = api::accept_invitation(inv_id).expect("TODO");
+                println!("{}: accepting invitation", game_id);
+                info!("{}: accepting invitation", game_id);
+                let color = api::game_color(game_id).expect("TODO");
 
-        if game_ids.is_empty() && !running.load(Ordering::SeqCst) {
-            info!("done");
+                let t = std::thread::spawn({
+                    let ai = ai.clone();
+                    let tx = tx.clone();
+                    move || {
+                        ThreadLocalLogger::replace(Box::new(WriteLogger::new(
+                            std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap()
+                        )));
+                        let message = rbc::interact::play_game(color, game_id, &ai);
+                        tx.send((game_id, message)).unwrap();
+                    }
+                });
+                thread_by_game_id.insert(game_id, t);
+            }
+        }
+
+        if !thread_by_game_id.is_empty() {
+            while let Ok((game_id, message)) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
+                info!("{}", message);
+                let t = thread_by_game_id.remove(&game_id).unwrap();
+                t.join().unwrap();
+                println!("{}", message);
+            }
+        }
+        if !running.load(Ordering::SeqCst) && thread_by_game_id.is_empty() {
             break;
         }
 
-        game_ids.retain(|&game_id| {
-            let gs = api::game_status(game_id).expect("TODO");
-            if gs.is_over {
-                let my_color = api::game_color(game_id).expect("TODO");
-                let winner = api::winner_color(game_id).expect("TODO");
-                let win_reason = api::win_reason(game_id).expect("TODO");
-                if my_color == winner {
-                    info!("I won game {} ({})", game_id, win_reason);
-                } else {
-                    info!("I lost game {} ({})", game_id, win_reason);
-                }
-                false
-            } else {
-                if gs.is_my_turn {
-                    match api::seconds_left(game_id) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("{:?}", e);
-                            return false;
-                        }
-                    }
-                    match api::opponent_move_results(game_id) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("{:?}", e);
-                            return false;
-                        }
-                    }
-                    match api::sense(game_id, 0.into()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("{:?}", e);
-                            return false;
-                        }
-                    }
-                    match api::make_move(game_id, "d2d4".to_owned()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("{:?}", e);
-                            return false;
-                        }
-                    }
-                    match api::end_turn(game_id) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("{:?}", e);
-                            return false;
-                        }
-                    }
-                }
-                true
-            }
-        });
-
-        if running.load(Ordering::SeqCst) {
-            for inv_id in api::list_invitations().expect("TODO") {
-                if game_ids.len() < me.max_games as usize {
-                    game_ids.push(api::accept_invitation(inv_id).expect("TODO"));
-                }
-            }
-        }
-
-        std::thread::sleep(std::time::Duration::from_secs(10));
+        std::thread::sleep(std::time::Duration::from_secs(5));
     }
+    info!("finished");
+    println!("finished");
 }
