@@ -54,6 +54,7 @@ fn make_get_request_raw(addr: &str) -> MyResult<String> {
     let resp = retry_request(||
         minreq::get(format!("{}{}", SERVER_URL, addr))
         .with_header("Authorization", AUTH)
+        .with_timeout(10)
     )?;
     Ok(resp.body)
 }
@@ -71,6 +72,7 @@ fn make_post_request<Request: Serialize, Response: DeserializeOwned>(
         minreq::post(format!("{}{}", SERVER_URL, addr))
         .with_header("Authorization", AUTH)
         .with_body(&payload)
+        .with_timeout(10)
     )?;
     Ok(serde_json::from_str(&resp.body)?)
 }
