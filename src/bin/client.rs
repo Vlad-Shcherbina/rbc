@@ -108,6 +108,23 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> String {
     message
 }
 
+struct Slot {
+    t: std::thread::JoinHandle<()>,
+    is_challenger: bool,
+}
+
+fn print_slots(slots: &[Option<Slot>], idx: usize, c: char) {
+    for (i, s) in slots.iter().enumerate() {
+        if i == idx {
+            print!("{} ", c)
+        } else if s.is_none() {
+            print!("  ");
+        } else {
+            print!("| ");
+        };
+    }
+}
+
 fn main() {
     log::set_logger(&ThreadLocalLogger).unwrap();
     log::set_max_level(log::LevelFilter::Info);
@@ -150,10 +167,15 @@ fn main() {
 
     let me = api::announce_myself().expect("TODO");
     println!("{} max games", me.max_games);
-    use std::collections::HashMap;
-    let mut thread_by_game_id = HashMap::new();
+    let mut slots: Vec<Option<Slot>> = Vec::new();
 
-    let spawn_thread = |thread_by_game_id: &mut HashMap<_, _>, game_id, color, challenger: bool| {
+    let spawn_thread = |slots: &mut Vec<Option<Slot>>, game_id, color, is_challenger: bool| {
+        let slot_idx = slots.iter().position(Option::is_none).unwrap_or_else(|| {
+            slots.push(None);
+            slots.len() - 1
+        });
+        assert!(slots[slot_idx].is_none());
+
         let t = std::thread::spawn({
             let ai = ai.clone();
             let tx = tx.clone();
@@ -162,26 +184,31 @@ fn main() {
                     std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap()
                 )));
                 let message = play_game(color, game_id, &ai);
-                tx.send((game_id, message)).unwrap();
+                tx.send((slot_idx, message)).unwrap();
             }
         });
-        thread_by_game_id.insert(game_id, (t, challenger));
+        slots[slot_idx] = Some(Slot { t, is_challenger });
+        slot_idx
     };
 
     loop {
         if running.load(Ordering::SeqCst) {
-            if thread_by_game_id.len() < me.max_games as usize {
+            let current_games = slots.iter().filter(|s| s.is_some()).count();
+            if current_games < me.max_games as usize {
                 api::announce_myself().expect("TODO");
             }
             for inv_id in api::list_invitations().expect("TODO") {
                 let game_id = api::accept_invitation(inv_id).expect("TODO");
-                println!("{}: accepting invitation", game_id);
                 info!("{}: accepting invitation", game_id);
                 let color = api::game_color(game_id).expect("TODO");
-                spawn_thread(&mut thread_by_game_id, game_id, color, false);
+                let slot_idx = spawn_thread(&mut slots, game_id, color, false);
+                print_slots(&slots, slot_idx, '_');
+                println!("{}: accepting invitation", game_id);
             }
             loop {
-                let num_challengers = thread_by_game_id.values().filter(|(_, challenger)| *challenger).count();
+                let num_challengers = slots.iter()
+                    .filter(|s| s.as_ref().map_or(false, |s| s.is_challenger))
+                    .count();
                 if num_challengers >= max_challenge_threads {
                     break;
                 }
@@ -195,22 +222,28 @@ fn main() {
                 let color: Color = rand::thread_rng().gen_bool(0.5).into();
                 let game_id = api::post_invitation(opponent, color).unwrap();
                 info!("challenger playing against {}", opponent);
+                let slot_idx = spawn_thread(&mut slots, game_id, color, true);
+                print_slots(&slots, slot_idx, '.');
                 println!("{}: challenge {}", game_id, opponent);
-                spawn_thread(&mut thread_by_game_id, game_id, color, true);
             }
         }
 
-        if thread_by_game_id.is_empty() {
+        if slots.iter().all(Option::is_none) {
             if !running.load(Ordering::SeqCst) {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_secs(5));
         } else {
-            if let Ok((game_id, message)) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
+            if let Ok((slot_idx, message)) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
                 info!("{}", message);
-                let (t, _) = thread_by_game_id.remove(&game_id).unwrap();
-                t.join().unwrap();
+                let slot = slots[slot_idx].take().unwrap();
+                slot.t.join().unwrap();
+                print_slots(&slots, slot_idx, '*');
                 println!("{}", message);
+
+                while slots.len() > 5 && slots.last().unwrap().is_none() {
+                    slots.pop();
+                }
             }
         }
     }
