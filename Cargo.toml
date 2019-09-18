@@ -19,6 +19,7 @@ rayon = { version = "*", optional = true }
 rand = "*"
 pbr = "*"
 chrono = "*"
+backtrace = "*"
 
 # TODO: remove when
 # https://github.com/neonmoe/minreq/commit/4f7f017246070bbfca237a247eff0936e53c0d96

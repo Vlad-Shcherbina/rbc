@@ -1,9 +1,16 @@
-use log::info;
+use log::{info, error};
 use rand::Rng;
 use rbc::logger::{ThreadLocalLogger, WriteLogger};
 use rbc::api;
 use rbc::game::{Color, Move};
 use rbc::ai_interface::Ai;
+
+pub fn play_game_no_panic(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
+    let ai = std::panic::AssertUnwindSafe(ai);
+    std::panic::catch_unwind(|| {
+        play_game(color, game_id, *ai)
+    }).unwrap_or(('E', format!("{}: panic  ", game_id)))
+}
 
 pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let seed = rand::thread_rng().gen();
@@ -137,6 +144,36 @@ fn print_slots(slots: &[Option<Slot>], idx: usize, c: char) {
     }
 }
 
+fn panic_hook(pi: &std::panic::PanicInfo) {
+    let payload =
+        if let Some(s) = pi.payload().downcast_ref::<&str>() {
+            (*s).to_owned()
+        } else if let Some(s) = pi.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            String::new()
+        };
+    let thread = std::thread::current();
+    let thread = thread.name().unwrap_or("unnamed");
+    let loc = match pi.location() {
+        Some(loc) => format!("{}:{}:{}", loc.file(), loc.line(), loc.column()),
+        None => "location unknown".to_owned()
+    };
+    let bt = backtrace::Backtrace::new();
+    error!("thread '{}' panicked at {:?}, {}\n{:?}", thread, payload, loc, bt);
+    let message = format!("thread '{}' panicked at {:?}, {}", thread, payload, loc);
+    println!("{}", message);
+
+    if let Ok(teleg_bot) = std::env::var("TELEG_BOT") {
+        let resp = minreq::get(format!("{}{}", teleg_bot, message))
+            .with_timeout(10)
+            .send();
+        if let Err(e) = resp {
+            error!("{:?}", e);
+        }
+    }
+}
+
 fn main() {
     log::set_logger(&ThreadLocalLogger).unwrap();
     log::set_max_level(log::LevelFilter::Info);
@@ -175,6 +212,12 @@ fn main() {
     info!("**********************");
     println!("**********************");
 
+    if std::env::var("TELEG_BOT").is_err() {
+        println!("TELEG_BOT not set")
+    }
+
+    std::panic::set_hook(Box::new(panic_hook));
+
     let (tx, rx) = std::sync::mpsc::channel();
 
     let me = api::announce_myself().expect("TODO");
@@ -188,18 +231,20 @@ fn main() {
         });
         assert!(slots[slot_idx].is_none());
 
-        let t = std::thread::spawn({
+        let t = std::thread::Builder::new()
+        .name(format!("game_{}", game_id))
+        .spawn({
             let ai = ai.clone();
             let tx = tx.clone();
             move || {
                 ThreadLocalLogger::replace(Box::new(WriteLogger::new(
                     std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap()
                 )));
-                let (outcome, message) = play_game(color, game_id, &ai);
+                let (outcome, message) = play_game_no_panic(color, game_id, &ai);
                 tx.send(slot_idx).unwrap();
                 (outcome, message)
             }
-        });
+        }).unwrap();
         slots[slot_idx] = Some(Slot { t, is_challenger });
         slot_idx
     };
