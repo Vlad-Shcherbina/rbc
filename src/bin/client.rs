@@ -133,6 +133,7 @@ struct Slot {
 }
 
 fn print_slots(slots: &[Option<Slot>], idx: usize, c: char) {
+    print!("{} ", chrono::offset::Utc::now().format("%m-%d %H:%M:%S"));
     for (i, s) in slots.iter().enumerate() {
         if i == idx {
             print!("{} ", c)
