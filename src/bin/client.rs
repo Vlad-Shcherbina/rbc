@@ -181,7 +181,7 @@ fn main() {
     ThreadLocalLogger::replace(Box::new(WriteLogger::new(
         std::fs::OpenOptions::new()
         .create(true).append(true)
-        .open("logs/client_main.info").unwrap()
+        .open("logs/client_main.info.txt").unwrap()
     )));
 
     let args: Vec<String> = std::env::args().collect();
@@ -238,7 +238,7 @@ fn main() {
             let tx = tx.clone();
             move || {
                 ThreadLocalLogger::replace(Box::new(WriteLogger::new(
-                    std::fs::File::create(format!("logs/game_{:05}.info", game_id)).unwrap()
+                    std::fs::File::create(format!("logs/game_{:05}.info.txt", game_id)).unwrap()
                 )));
                 let (outcome, message) = play_game_no_panic(color, game_id, &ai);
                 tx.send(slot_idx).unwrap();
