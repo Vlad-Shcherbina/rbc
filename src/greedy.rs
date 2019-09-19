@@ -6,7 +6,9 @@ use crate::ai_interface::{Ai, Player};
 use crate::infoset::Infoset;
 
 #[derive(Clone)]
-pub struct GreedyAi;
+pub struct GreedyAi {
+    pub experiment: bool,
+}
 
 impl Ai for GreedyAi {
     fn make_player(&self, color: Color, seed: u64) -> Box<dyn Player> {
@@ -16,6 +18,7 @@ impl Ai for GreedyAi {
             color,
             infoset,
             summary: Vec::new(),
+            experiment: self.experiment,
         })
     }
 }
@@ -25,6 +28,7 @@ struct GreedyPlayer {
     color: Color,
     infoset: Infoset,
     summary: Vec<u8>,
+    experiment: bool,
 }
 
 impl Player for GreedyPlayer {
@@ -38,25 +42,30 @@ impl Player for GreedyPlayer {
     fn choose_sense(&mut self) -> Square {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
         write!(self.summary, "{:>6}", self.infoset.possible_states.len()).unwrap();
+        info!("{:#?}", self.infoset.render());
         let timer = std::time::Instant::now();
-        let mut best_sense_rank = -1.0;
-        let mut best_sense = Square(0);
-        for rank in (1..7).rev() {
-            let mut line = String::new();
-            for file in 1..7 {
-                let sq = Square(rank * 8 + file);
-                let e = self.infoset.sense_entropy(sq) + self.rng.gen_range(0.0, 1e-4);
-                line.push_str(&format!("{:>7.2}", e));
-                if e > best_sense_rank {
-                    best_sense_rank = e;
-                    best_sense = sq;
+        if self.experiment {
+            unimplemented!("experiment")
+        } else {
+            let mut best_sense_rank = -1.0;
+            let mut best_sense = Square(0);
+            for rank in (1..7).rev() {
+                let mut line = String::new();
+                for file in 1..7 {
+                    let sq = Square(rank * 8 + file);
+                    let e = self.infoset.sense_entropy(sq) + self.rng.gen_range(0.0, 1e-4);
+                    line.push_str(&format!("{:>7.2}", e));
+                    if e > best_sense_rank {
+                        best_sense_rank = e;
+                        best_sense = sq;
+                    }
                 }
+                info!("entropy: {}", line)
             }
-            info!("entropy: {}", line)
+            info!("best sense: {:?} {:.3}", best_sense, best_sense_rank);
+            write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
+            best_sense
         }
-        info!("best sense: {:?} {:.3}", best_sense, best_sense_rank);
-        write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-        best_sense
     }
 
     fn handle_sense(&mut self, sense: Square, sense_result: &[(Square, Option<Piece>)]) {

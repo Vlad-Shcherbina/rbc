@@ -8,8 +8,8 @@ fn main() {
 
     let timer = std::time::Instant::now();
 
-    let ai1 = rbc::greedy::GreedyAi;
-    let ai2 = rbc::greedy::GreedyAi;
+    let ai1 = rbc::greedy::GreedyAi { experiment: false };
+    let ai2 = rbc::greedy::GreedyAi { experiment: false };
 
     let mut player1 = ai1.make_player(Color::White, 424242);
     let mut player2 = ai2.make_player(Color::Black, 424242);
