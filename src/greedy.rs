@@ -83,7 +83,7 @@ impl Player for GreedyPlayer {
         let candidates = self.infoset.fog_state.all_sensible_requested_moves();
         let m = candidates.len();
         let n = self.infoset.possible_states.len();
-        let mut payoff = vec![0f64; m * n];
+        let mut payoff = vec![0f32; m * n];
 
         let mut eval_hash = std::collections::HashMap::new();
 
@@ -101,7 +101,7 @@ impl Player for GreedyPlayer {
                 let mut s2 = s.clone();
                 s2.make_move(taken);
                 let e = *eval_hash.entry(s2.clone()).or_insert_with(|| evaluate(&s2, depth, -3000, 3000));
-                payoff[i * n + j] = -e as f64;
+                payoff[i * n + j] = -e as f32;
             }
             info!("{} rows left", m - 1 - i);
         }
@@ -149,17 +149,17 @@ impl Player for GreedyPlayer {
 }
 
 pub struct Solution {
-    pub game_value: f64,
-    pub strategy1: Vec<f64>,
-    pub strategy2: Vec<f64>,
+    pub game_value: f32,
+    pub strategy1: Vec<f32>,
+    pub strategy2: Vec<f32>,
 }
 
-pub fn fictitious_play(m: usize, n: usize, a: &[f64], num_steps: i32) -> Solution {
-    let mut strategy1 = vec![0f64; m];
-    let mut strategy2 = vec![0f64; n];
+pub fn fictitious_play(m: usize, n: usize, a: &[f32], num_steps: i32) -> Solution {
+    let mut strategy1 = vec![0f32; m];
+    let mut strategy2 = vec![0f32; n];
 
-    let mut vals1 = vec![0f64; m];
-    let mut vals2 = vec![0f64; n];
+    let mut vals1 = vec![0f32; m];
+    let mut vals2 = vec![0f32; n];
 
     for _ in 0..num_steps {
         {
@@ -188,7 +188,7 @@ pub fn fictitious_play(m: usize, n: usize, a: &[f64], num_steps: i32) -> Solutio
         }
     }
 
-    let inv = 1.0 / num_steps as f64;
+    let inv = 1.0 / num_steps as f32;
     for p in &mut strategy1 {
         *p *= inv;
     }
