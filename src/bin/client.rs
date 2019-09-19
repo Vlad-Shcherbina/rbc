@@ -191,7 +191,9 @@ fn main() {
         eprintln!("    challenger <max challenge threads>");
         std::process::exit(1);
     }
-    let max_challenge_threads: usize = args[1].parse().unwrap();
+    let arg: i32 = args[1].parse().unwrap();
+    let max_challenge_threads = arg.abs() as usize;
+    let accept_invites = arg >= 0;
 
     let ai = rbc::greedy::GreedyAi { experiment: false };
 
@@ -217,12 +219,13 @@ fn main() {
         println!("TELEG_BOT not set")
     }
 
+    println!("accept invites: {}", accept_invites);
+    println!("challenge threads: {}", max_challenge_threads);
+
     std::panic::set_hook(Box::new(panic_hook));
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let me = api::announce_myself().expect("TODO");
-    println!("{} max games", me.max_games);
     let mut slots: Vec<Option<Slot>> = Vec::new();
 
     let spawn_thread = |slots: &mut Vec<Option<Slot>>, game_id, color, is_challenger: bool| {
@@ -252,17 +255,16 @@ fn main() {
 
     loop {
         if running.load(Ordering::SeqCst) {
-            let current_games = slots.iter().filter(|s| s.is_some()).count();
-            if current_games < me.max_games as usize {
+            if accept_invites {
                 api::announce_myself().expect("TODO");
-            }
-            for inv_id in api::list_invitations().expect("TODO") {
-                let game_id = api::accept_invitation(inv_id).expect("TODO");
-                info!("{}: accepting invitation", game_id);
-                let color = api::game_color(game_id).expect("TODO");
-                let slot_idx = spawn_thread(&mut slots, game_id, color, false);
-                print_slots(&slots, slot_idx, '_');
-                println!("{}", game_id);
+                for inv_id in api::list_invitations().expect("TODO") {
+                    let game_id = api::accept_invitation(inv_id).expect("TODO");
+                    info!("{}: accepting invitation", game_id);
+                    let color = api::game_color(game_id).expect("TODO");
+                    let slot_idx = spawn_thread(&mut slots, game_id, color, false);
+                    print_slots(&slots, slot_idx, '_');
+                    println!("{}", game_id);
+                }
             }
             loop {
                 let num_challengers = slots.iter()
