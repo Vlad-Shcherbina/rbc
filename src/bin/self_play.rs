@@ -58,7 +58,7 @@ fn main() {
             fog_state.fog_of_war(board.side_to_play);
             assert!(fog_state.all_sensible_requested_moves().contains(rm));
         }
-        let taken_move = requested_move.map_or(None, |m| board.requested_to_taken(m));
+        let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
         last_capture_square = board.make_move(taken_move);
         player.handle_move(requested_move, taken_move, last_capture_square);
 

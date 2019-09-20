@@ -407,6 +407,7 @@ impl BoardState {
         moves
     }
 
+    #[allow(clippy::cognitive_complexity)]
     #[inline(never)]
     pub fn all_moves(&self) -> Vec<Move> {
         let mut result = Vec::with_capacity(128);

@@ -107,7 +107,7 @@ impl Player for GreedyPlayer {
         }
         info!("eval_hash size: {}", eval_hash.len());
         info!("solving...");
-        let sol = fictitious_play(m, n, &payoff, 100000);
+        let sol = fictitious_play(m, n, &payoff, 100_000);
         let mut ix: Vec<usize> = (0..n).collect();
         ix.sort_by(|&j1, &j2| sol.strategy2[j2].partial_cmp(&sol.strategy2[j1]).unwrap());
         for j in ix {
