@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::game::{STARTING_FEN, Square, Color, Piece, Move, BoardState};
+use crate::game::{Square, Color, Piece, Move, BoardState};
 
 pub struct Infoset {
     pub color: Color,
@@ -16,7 +16,7 @@ fn deduplicate(xs: &mut Vec<impl Eq + std::hash::Hash + Clone>) {
 impl Infoset {
     #[inline(never)]
     pub fn new(color: Color) -> Infoset {
-        let start_state: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
+        let start_state = BoardState::initial();
         let mut fog_state = start_state.clone();
         fog_state.fog_of_war(color);
         Infoset {

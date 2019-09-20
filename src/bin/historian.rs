@@ -54,7 +54,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
 
     for (mut i, &color) in [Color::White, Color::Black].iter().enumerate() {
         info!("{:?} PoV:", color);
-        let mut state: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
+        let mut state = BoardState::initial();
         state.fog_of_war(color);
 
         while i < h.moves.len() {

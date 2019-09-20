@@ -1,4 +1,4 @@
-use rbc::game::{STARTING_FEN, Square, Color, BoardState, PieceKind};
+use rbc::game::{Square, Color, BoardState, PieceKind};
 use rbc::ai_interface::Ai;
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
     let mut player1 = ai1.make_player(Color::White, 424242);
     let mut player2 = ai2.make_player(Color::Black, 424242);
 
-    let mut board: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
+    let mut board = BoardState::initial();
     let mut move_number = 0;
     let mut last_capture_square = None;
 

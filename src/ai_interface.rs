@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use log::info;
-use crate::game::{STARTING_FEN, Square, Color, Piece, Move, BoardState};
+use crate::game::{Square, Color, Piece, Move, BoardState};
 
 pub trait Ai {
     fn make_player(&self, color: Color, seed: u64) -> Box<dyn Player>;
@@ -22,7 +22,7 @@ pub struct RandomAi {
 
 impl Ai for RandomAi {
     fn make_player(&self, color: Color, seed: u64) -> Box<dyn Player> {
-        let mut state: BoardState = fen::BoardState::from_fen(STARTING_FEN).unwrap().into();
+        let mut state = BoardState::initial();
         state.fog_of_war(color);
         Box::new(RandomPlayer {
             rng: StdRng::seed_from_u64(seed),

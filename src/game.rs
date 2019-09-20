@@ -242,6 +242,10 @@ impl From<fen::BoardState> for BoardState {
 }
 
 impl BoardState {
+    pub fn initial() -> BoardState {
+        fen::BoardState::from_fen(STARTING_FEN).unwrap().into()
+    }
+
     pub fn get_piece(&self, i: Square) -> Option<Piece> {
         let i = i.0 as usize;
         let k = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
