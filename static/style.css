@@ -1,0 +1,19 @@
+table.board {
+    border-spacing: 0px;
+}
+
+table.board td {
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    vertical-align: middle;
+    padding: 0px;
+    font-size: 18px;
+    overflow: hidden;
+    overflow-y: hidden;
+    display: inline-block;
+}
+
+.bc {
+    background-color: #ddd;
+}
