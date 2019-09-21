@@ -32,24 +32,24 @@ impl BoardState {
         s.push_str("<table class=board>");
         for rank in (0..8).rev() {
             s.push_str("<tr>");
-            s.push_str(&format!("<td>{}</td>", rank + 1));
+            s.push_str(&format!("<td class=coord>{}</td>", rank + 1));
             for file in 0..8 {
                 if (rank + file) % 2 == 0 {
-                    s.push_str("<td class=bc>");
+                    s.push_str("<td class=bc><div class=piece>");
                 } else {
-                    s.push_str("<td>");
+                    s.push_str("<td><div class=piece>");
                 }
                 let sq = Square(rank * 8 + file);
                 if let Some(piece) = self.get_piece(sq) {
                     s.push(piece.to_emoji());
                 }
-                s.push_str("</td>");
+                s.push_str("</div></td>");
             }
             s.push_str("</tr>");
         }
         s.push_str("<tr>");
         for c in " abcdefgh".chars() {
-            s.push_str("<td>");
+            s.push_str("<td class=coord>");
             s.push(c);
             s.push_str("</td>");
         }

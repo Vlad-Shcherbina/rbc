@@ -8,4 +8,12 @@ fn main() {
     writeln!(fout, "{}", rbc::html::PREAMBLE).unwrap();
     let s = BoardState::initial();
     writeln!(fout, "{}", s.to_html()).unwrap();
+    writeln!(fout, "<table>").unwrap();
+    writeln!(fout, "<tr>").unwrap();
+    for _ in 0..5 {
+        writeln!(fout, "<td>{}</td>", s.to_html()).unwrap();
+    }
+    writeln!(fout, "</tr>").unwrap();
+    writeln!(fout, "</table>").unwrap();
+    writeln!(fout, "Hello, world!").unwrap();
 }
