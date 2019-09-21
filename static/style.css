@@ -1,3 +1,7 @@
+td.numcol {
+    text-align: right;
+}
+
 table.board {
     border-spacing: 0px;
     table-layout: fixed;

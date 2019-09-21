@@ -1,3 +1,4 @@
+use std::io::Write;
 use rand::prelude::*;
 use log::info;
 use crate::game::{Square, Color, Piece, Move, BoardState};
@@ -7,11 +8,17 @@ pub trait Ai {
 }
 
 pub trait Player {
-    fn handle_opponent_move(&mut self, capture_square: Option<Square>);
-    fn choose_sense(&mut self) -> Square;
-    fn handle_sense(&mut self, sense: Square, sense_result: &[(Square, Option<Piece>)]);
-    fn choose_move(&mut self) -> Option<Move>;
-    fn handle_move(&mut self, requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>);
+    fn handle_opponent_move(&mut self,
+        capture_square: Option<Square>,
+        html: &mut dyn Write);
+    fn choose_sense(&mut self, html: &mut dyn Write) -> Square;
+    fn handle_sense(&mut self,
+        sense: Square, sense_result: &[(Square, Option<Piece>)],
+        html: &mut dyn Write);
+    fn choose_move(&mut self, html: &mut dyn Write) -> Option<Move>;
+    fn handle_move(&mut self,
+        requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
+        html: &mut dyn Write);
     fn get_summary(&self) -> String;
 }
 
@@ -41,28 +48,31 @@ struct RandomPlayer {
 }
 
 impl Player for RandomPlayer {
-    fn handle_opponent_move(&mut self, capture_square: Option<Square>) {
+    fn handle_opponent_move(&mut self, capture_square: Option<Square>, _html: &mut dyn Write) {
         assert!(self.color != self.state.side_to_play);
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         self.state.make_move_under_fog(capture_square);
     }
 
-    fn choose_sense(&mut self) -> Square {
+    fn choose_sense(&mut self, _html: &mut dyn Write) -> Square {
         assert_eq!(self.color, self.state.side_to_play);
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         Square(self.rng.gen_range(0, 64))
     }
 
-    fn handle_sense(&mut self, _sense: Square, _sense_result: &[(Square, Option<Piece>)]) {
+    fn handle_sense(&mut self,
+        _sense: Square, _sense_result: &[(Square, Option<Piece>)],
+        _html: &mut dyn Write,
+    ) {
         assert_eq!(self.color, self.state.side_to_play);
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         info!("after sense: {:#?}", self.state.render());
     }
 
-    fn choose_move(&mut self) -> Option<Move> {
+    fn choose_move(&mut self, _html: &mut dyn Write) -> Option<Move> {
         assert_eq!(self.color, self.state.side_to_play);
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
@@ -74,7 +84,10 @@ impl Player for RandomPlayer {
         }
     }
 
-    fn handle_move(&mut self, _requested: Option<Move>, taken: Option<Move>, _capture_square: Option<Square>) {
+    fn handle_move(&mut self,
+        _requested: Option<Move>, taken: Option<Move>, _capture_square: Option<Square>,
+        _html: &mut dyn Write,
+    ) {
         assert_eq!(self.color, self.state.side_to_play);
         self.state.make_move(taken);
         self.state.fog_of_war(self.color);

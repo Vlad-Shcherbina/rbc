@@ -8,7 +8,7 @@ pub const PREAMBLE: &str = r#"
 "#;
 
 impl Piece {
-    fn to_emoji(self) -> char {
+    pub fn to_emoji(self) -> char {
         match (self.color, self.kind) {
             (White, Pawn) => '♙',
             (White, Knight) => '♘',

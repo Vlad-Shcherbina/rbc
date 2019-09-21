@@ -1,3 +1,4 @@
+use std::io::Write;
 use log::{info, error};
 use rand::Rng;
 use rbc::logger::{ThreadLocalLogger, WriteLogger};
@@ -25,12 +26,16 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let timer = std::time::Instant::now();
     let mut last_time_left = 900.0;
 
+    let mut html = std::fs::File::create(format!("logs/game_{:05}.html", game_id)).unwrap();
+    writeln!(html, "{}", rbc::html::PREAMBLE).unwrap();
+
     loop {
         let gs = api::game_status(game_id).expect("TODO");
         if gs.is_over {
             break;
         }
         if gs.is_my_turn {
+            writeln!(html, "<hr>").unwrap();
             match api::seconds_left(game_id) {
                 Ok(t) => last_time_left = t,
                 Err(api::Error::HttpError(400)) => {
@@ -51,12 +56,12 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             };
 
             if halfmove_number > 0 {
-                player.handle_opponent_move(capture_square);
+                player.handle_opponent_move(capture_square, &mut html);
             } else {
                 assert!(capture_square.is_none());
             }
 
-            let sense = player.choose_sense();
+            let sense = player.choose_sense(&mut html);
             let sense_result = match api::sense(game_id, sense) {
                 Ok(sr) => sr,
                 Err(api::Error::HttpError(400)) => {
@@ -66,9 +71,9 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
                 }
                 Err(e) => panic!("{:?}", e),
             };
-            player.handle_sense(sense, &sense_result);
+            player.handle_sense(sense, &sense_result, &mut html);
 
-            let requested = player.choose_move();
+            let requested = player.choose_move(&mut html);
             let req_str = requested.map_or("a1a1".to_owned(), |r| r.to_uci());
             let mr = match api::make_move(game_id, req_str) {
                 Ok(mr) => mr,
@@ -82,7 +87,8 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             player.handle_move(
                 mr.requested.map(|m| Move::from_uci(&m)),
                 mr.taken.map(|m| Move::from_uci(&m)),
-                mr.capture_square);
+                mr.capture_square,
+                &mut html);
 
             match api::end_turn(game_id) {
                 Ok(()) => {},

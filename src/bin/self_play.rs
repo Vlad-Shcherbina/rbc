@@ -18,6 +18,8 @@ fn main() {
     let mut move_number = 0;
     let mut last_capture_square = None;
 
+    let mut html = std::io::sink();
+
     loop {
         dbg!(move_number);
         let mut white_king = false;
@@ -48,11 +50,11 @@ fn main() {
         };
 
         if move_number > 0 {
-            player.handle_opponent_move(last_capture_square);
+            player.handle_opponent_move(last_capture_square, &mut html);
         }
-        let sense = player.choose_sense();
-        player.handle_sense(sense, &board.sense(sense));
-        let requested_move = player.choose_move();
+        let sense = player.choose_sense(&mut html);
+        player.handle_sense(sense, &board.sense(sense), &mut html);
+        let requested_move = player.choose_move(&mut html);
         if let Some(rm) = &requested_move {
             let mut fog_state = board.clone();
             fog_state.fog_of_war(board.side_to_play);
@@ -60,7 +62,7 @@ fn main() {
         }
         let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
         last_capture_square = board.make_move(taken_move);
-        player.handle_move(requested_move, taken_move, last_capture_square);
+        player.handle_move(requested_move, taken_move, last_capture_square, &mut html);
 
         move_number += 1;
     }
