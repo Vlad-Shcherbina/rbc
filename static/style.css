@@ -2,7 +2,7 @@ td.numcol {
     text-align: right;
 }
 
-table.board {
+table.board, table.board-large {
     border-spacing: 0px;
     table-layout: fixed;
 }
@@ -21,6 +21,37 @@ table.board td div.piece {
     width: 20px;
     height: 20px;
     font-size: 20px;
+}
+
+table.board-large td {
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    vertical-align: middle;
+    padding: 0px;
+}
+
+table.board-large td div.piece {
+    line-height: 0.8em;
+    width: 30px;
+    font-size: 10px;
+    word-wrap: break-word;
+}
+
+table.board-large td div.piece.cnt1 {
+    font-size: 25px;
+}
+
+table.board-large td div.piece.cnt2 {
+    font-size: 20px;
+}
+
+table.board-large td div.piece.cnt3 {
+    font-size: 15px;
+}
+
+table.board-large td div.piece.cnt4 {
+    font-size: 15px;
 }
 
 .bc {

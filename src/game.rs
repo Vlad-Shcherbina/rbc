@@ -21,7 +21,7 @@ impl From<Square> for i8 {
 }
 
 impl Square {
-    fn to_san(self) -> String {
+    pub fn to_san(self) -> String {
         let x = self.0;
         format!("{}{}", ('a' as i8 + x % 8) as u8 as char, x / 8 + 1)
     }

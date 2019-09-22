@@ -46,6 +46,7 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
         write!(self.summary, "{:>6}", self.infoset.possible_states.len()).unwrap();
         info!("{:#?}", self.infoset.render());
+        write!(html, "<p>{}</p>", self.infoset.to_html()).unwrap();
         let timer = std::time::Instant::now();
         if self.experiment {
             unimplemented!("experiment")
@@ -67,21 +68,21 @@ impl Player for GreedyPlayer {
             }
             info!("best sense: {:?} {:.3}", best_sense, best_sense_rank);
             write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-            writeln!(html, "{}", self.infoset.fog_state.to_html()).unwrap();
-            writeln!(html, "<p>Sense: TODO</p>").unwrap();
+            writeln!(html, "<p>Sense: <b>{}</b></p>", best_sense.to_san()).unwrap();
             best_sense
         }
     }
 
     fn handle_sense(&mut self,
         sense: Square, sense_result: &[(Square, Option<Piece>)],
-        _html: &mut dyn Write,
+        html: &mut dyn Write,
     ) {
         assert_eq!(self.color, self.infoset.fog_state.side_to_play);
         info!("sense {:?} -> {:?}", sense, sense_result);
         self.infoset.sense(sense, sense_result);
         info!("{:#?}", self.infoset.render());
         write!(self.summary, " {:>5}", self.infoset.possible_states.len()).unwrap();
+        write!(html, "<p>{}</p>", self.infoset.to_html()).unwrap();
     }
 
     fn choose_move(&mut self, html: &mut dyn Write) -> Option<Move> {
