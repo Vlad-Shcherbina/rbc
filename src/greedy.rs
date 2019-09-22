@@ -119,14 +119,14 @@ impl Player for GreedyPlayer {
         let sol = fictitious_play(m, n, &payoff, 100_000);
         let mut jx: Vec<usize> = (0..n).collect();
         jx.sort_by(|&j1, &j2| sol.strategy2[j2].partial_cmp(&sol.strategy2[j1]).unwrap());
-        jx = jx.into_iter().take_while(|&j| sol.strategy2[j] > 0.1).collect();
+        jx = jx.into_iter().take(6).take_while(|&j| sol.strategy2[j] > 0.01).collect();
         for &j in &jx {
             info!("dangerous: {} {:#?}", sol.strategy2[j], self.infoset.possible_states[j].render());
         }
         info!("game value: {}", sol.game_value);
         let mut ix: Vec<usize> = (0..m).collect();
         ix.sort_by(|&j1, &j2| sol.strategy1[j2].partial_cmp(&sol.strategy1[j1]).unwrap());
-        ix = ix.into_iter().take_while(|&i| sol.strategy1[i] > 0.05).collect();
+        ix = ix.into_iter().take(10).take_while(|&i| sol.strategy1[i] > 0.01).collect();
         for &i in &ix {
             info!("good move: {} {}", candidates[i].to_uci(), sol.strategy1[i]);
         }
