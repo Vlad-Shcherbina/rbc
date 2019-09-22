@@ -28,7 +28,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         }
         info!(
             "{:?} {}",
-            state.side_to_play,
+            state.side_to_play(),
             m.taken_move.as_ref().map_or("--", String::as_ref),
         );
         let taken_move = m.taken_move.as_ref().map(|s| Move::from_uci(s));

@@ -28,9 +28,9 @@ impl Infoset {
 
     #[inline(never)]
     pub fn opponent_move(&mut self, capture_square: Option<Square>) {
-        assert!(self.fog_state.side_to_play != self.color);
+        assert!(self.fog_state.side_to_play() != self.color);
         for s in &self.possible_states {
-            assert!(s.side_to_play != self.color);
+            assert!(s.side_to_play() != self.color);
         }
 
         let mut new_possible_states = Vec::new();
@@ -54,9 +54,9 @@ impl Infoset {
 
     #[inline(never)]
     pub fn sense(&mut self, sense: Square, sense_result: &[(Square, Option<Piece>)]) {
-        assert_eq!(self.fog_state.side_to_play, self.color);
+        assert_eq!(self.fog_state.side_to_play(), self.color);
         for s in &self.possible_states {
-            assert_eq!(s.side_to_play, self.color);
+            assert_eq!(s.side_to_play(), self.color);
         }
         self.possible_states.retain(|state| { state.sense(sense) == sense_result });
     }
@@ -93,9 +93,9 @@ impl Infoset {
 
     #[inline(never)]
     pub fn my_move(&mut self, requested_move: Option<Move>, taken_move: Option<Move>, capture_square: Option<Square>) {
-        assert_eq!(self.fog_state.side_to_play, self.color);
+        assert_eq!(self.fog_state.side_to_play(), self.color);
         for s in &self.possible_states {
-            assert_eq!(s.side_to_play, self.color);
+            assert_eq!(s.side_to_play(), self.color);
         }
 
         let mut new_possible_states = Vec::new();

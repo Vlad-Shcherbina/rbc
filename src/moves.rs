@@ -1,4 +1,4 @@
-use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
+use crate::game::{Square, Color, PieceKind, Piece, Move, BoardFlags, BoardState};
 
 const PROMOTION_TARGETS_WITH_NONE: &[Option<PieceKind>] = &[
     Some(PieceKind::Knight),
@@ -18,43 +18,38 @@ const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
 impl BoardState {
     #[inline(never)]
     pub fn make_move_under_fog(&mut self, capture_square: Option<Square>) {
-        self.side_to_play = self.side_to_play.opposite();
+        self.flags ^= BoardFlags::WHITE_TO_PLAY;
         if let Some(Square(p)) = capture_square {
-            match self.side_to_play {
-                Color::White => {
-                    if p == 0 {
-                        self.white_can_ooo = false;
-                    }
-                    if p == 7 {
-                        self.white_can_oo = false;
-                    }
-                    if p == 4 {
-                        self.white_can_ooo = false;
-                        self.white_can_oo = false;
-                    }
+            if self.flags.contains(BoardFlags::WHITE_TO_PLAY) {
+                if p == 0 {
+                    self.flags.remove(BoardFlags::WHITE_CAN_OOO);
                 }
-                Color::Black => {
-                    if p == 56 {
-                        self.black_can_ooo = false;
-                    }
-                    if p == 63 {
-                        self.black_can_oo = false;
-                    }
-                    if p == 60 {
-                        self.black_can_ooo = false;
-                        self.black_can_oo = false;
-                    }
+                if p == 7 {
+                    self.flags.remove(BoardFlags::WHITE_CAN_OO);
+                }
+                if p == 4 {
+                    self.flags.remove(BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO);
+                }
+            } else {
+                if p == 56 {
+                    self.flags.remove(BoardFlags::BLACK_CAN_OOO);
+                }
+                if p == 63 {
+                    self.flags.remove(BoardFlags::BLACK_CAN_OO);
+                }
+                if p == 60 {
+                    self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
                 }
             }
             let p = self.replace_piece(Square(p), None);
-            assert_eq!(p.unwrap().color, self.side_to_play);
+            assert_eq!(p.unwrap().color, self.side_to_play());
         }
     }
 
     #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
     pub fn make_move(&mut self, m: Option<Move>) -> Option<Square> {
-        self.side_to_play = self.side_to_play.opposite();
+        self.flags ^= BoardFlags::WHITE_TO_PLAY;
         let m = match m {
             Some(m) => m,
             None => {
@@ -74,7 +69,7 @@ impl BoardState {
             Some(Piece { kind: PieceKind::Pawn, ..}) => {
                 if let Some(ep) = self.en_passant_square.take() {
                     if m.to == ep {
-                        let cap = match self.side_to_play {
+                        let cap = match self.side_to_play() {
                             Color::White => ep.0 + 8,
                             Color::Black => ep.0 - 8,
                         };
@@ -102,63 +97,57 @@ impl BoardState {
         self.replace_piece(m.to, p);
 
         if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 6 {
-            assert!(self.white_can_oo);
+            assert!(self.flags.contains(BoardFlags::WHITE_CAN_OO));
             assert_eq!(self.get_piece(Square(7)).unwrap().kind, PieceKind::Rook);
-            self.white_can_oo = false;
-            self.white_can_ooo = false;
+            self.flags.remove(BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO);
             let rook = self.replace_piece(Square(7), None);
             let e = self.replace_piece(Square(5), rook);
             assert!(e.is_none());
         }
         if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 2 {
-            assert!(self.white_can_ooo);
+            assert!(self.flags.contains(BoardFlags::WHITE_CAN_OOO));
             assert_eq!(self.get_piece(Square(0)).unwrap().kind, PieceKind::Rook);
-            self.white_can_oo = false;
-            self.white_can_ooo = false;
+            self.flags.remove(BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO);
             let rook = self.replace_piece(Square(0), None);
             let e = self.replace_piece(Square(3), rook);
             assert!(e.is_none());
         }
 
         if p.unwrap().kind == PieceKind::King && m.from.0 == 60 && m.to.0 == 62 {
-            assert!(self.black_can_oo);
+            assert!(self.flags.contains(BoardFlags::BLACK_CAN_OO));
             assert_eq!(self.get_piece(Square(63)).unwrap().kind, PieceKind::Rook);
-            self.black_can_oo = false;
-            self.black_can_ooo = false;
+            self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
             let rook = self.replace_piece(Square(63), None);
             let e = self.replace_piece(Square(61), rook);
             assert!(e.is_none());
         }
         if p.unwrap().kind == PieceKind::King && m.from.0 == 60 && m.to.0 == 58 {
-            assert!(self.black_can_ooo);
+            assert!(self.flags.contains(BoardFlags::BLACK_CAN_OOO));
             assert_eq!(self.get_piece(Square(56)).unwrap().kind, PieceKind::Rook);
-            self.black_can_oo = false;
-            self.black_can_ooo = false;
+            self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
             let rook = self.replace_piece(Square(56), None);
             let e = self.replace_piece(Square(59), rook);
             assert!(e.is_none());
         }
 
         if m.to.0 == 4 || m.from.0 == 4 {
-            self.white_can_oo = false;
-            self.white_can_ooo = false;
+            self.flags.remove(BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO);
         }
         if m.to.0 == 0 || m.from.0 == 0 {
-            self.white_can_ooo = false;
+            self.flags.remove(BoardFlags::WHITE_CAN_OOO);
         }
         if m.to.0 == 7 || m.from.0 == 7 {
-            self.white_can_oo = false;
+            self.flags.remove(BoardFlags::WHITE_CAN_OO);
         }
 
         if m.to.0 == 60 || m.from.0 == 60 {
-            self.black_can_oo = false;
-            self.black_can_ooo = false;
+            self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
         }
         if m.to.0 == 56 || m.from.0 == 56 {
-            self.black_can_ooo = false;
+            self.flags.remove(BoardFlags::BLACK_CAN_OOO);
         }
         if m.to.0 == 63 || m.from.0 == 63 {
-            self.black_can_oo = false;
+            self.flags.remove(BoardFlags::BLACK_CAN_OO);
         }
         capture_square
     }
@@ -174,12 +163,12 @@ impl BoardState {
                 continue;
             }
             let p = p.unwrap();
-            assert_eq!(p.color, self.side_to_play);
+            assert_eq!(p.color, self.side_to_play());
             match p.kind {
                 PieceKind::Pawn => {
                     let rank = from.0 / 8;
                     let file = from.0 % 8;
-                    let (dr, home_rank, promotion_rank) = match self.side_to_play {
+                    let (dr, home_rank, promotion_rank) = match self.side_to_play() {
                         Color::White => (1, 1, 6),
                         Color::Black => (-1, 6, 1),
                     };
@@ -272,14 +261,14 @@ impl BoardState {
             }
         }
         // TODO: dedup (anchor:EJahPttWSGBsjB)
-        match self.side_to_play {
+        match self.side_to_play() {
             Color::White => {
-                if self.white_can_oo &&
+                if self.flags.contains(BoardFlags::WHITE_CAN_OO) &&
                    self.get_piece(Square(5)).is_none() &&
                    self.get_piece(Square(6)).is_none() {
                     result.push(Move { from: Square(4), to: Square(6), promotion: None });
                 }
-                if self.white_can_ooo &&
+                if self.flags.contains(BoardFlags::WHITE_CAN_OOO) &&
                    self.get_piece(Square(1)).is_none() &&
                    self.get_piece(Square(2)).is_none() &&
                    self.get_piece(Square(3)).is_none() {
@@ -287,12 +276,12 @@ impl BoardState {
                 }
             }
             Color::Black => {
-                if self.black_can_oo &&
+                if self.flags.contains(BoardFlags::BLACK_CAN_OO) &&
                    self.get_piece(Square(56 + 5)).is_none() &&
                    self.get_piece(Square(56 + 6)).is_none() {
                     result.push(Move { from: Square(56 + 4), to: Square(56 + 6), promotion: None });
                 }
-                if self.black_can_ooo &&
+                if self.flags.contains(BoardFlags::BLACK_CAN_OOO) &&
                    self.get_piece(Square(56 + 1)).is_none() &&
                    self.get_piece(Square(56 + 2)).is_none() &&
                    self.get_piece(Square(56 + 3)).is_none() {
@@ -306,10 +295,10 @@ impl BoardState {
     #[inline(never)]
     pub fn requested_to_taken(&self, m: Move) -> Option<Move> {
         let p = self.get_piece(m.from).unwrap();
-        assert_eq!(p.color, self.side_to_play);
+        assert_eq!(p.color, self.side_to_play());
         match p.kind {
             PieceKind::Pawn => {
-                let dr = match self.side_to_play {
+                let dr = match self.side_to_play() {
                     Color::White => 1,
                     Color::Black => -1,
                 };
@@ -395,7 +384,7 @@ impl BoardState {
     #[inline(never)]
     pub fn all_moves_naive(&self) -> Vec<Move> {
         let mut fog_state = self.clone();
-        fog_state.fog_of_war(self.side_to_play);
+        fog_state.fog_of_war(self.side_to_play());
 
         let mut moves: Vec<Move> =
             fog_state.all_sensible_requested_moves()
@@ -418,14 +407,14 @@ impl BoardState {
                 continue;
             }
             let p = p.unwrap();
-            if p.color != self.side_to_play {
+            if p.color != self.side_to_play() {
                 continue;
             }
             match p.kind {
                 PieceKind::Pawn => {
                     let rank = from.0 / 8;
                     let file = from.0 % 8;
-                    let (dr, home_rank, promotion_rank) = match self.side_to_play {
+                    let (dr, home_rank, promotion_rank) = match self.side_to_play() {
                         Color::White => (1, 1, 6),
                         Color::Black => (-1, 6, 1),
                     };
@@ -458,7 +447,7 @@ impl BoardState {
                         }
                         let to = Square((rank + dr) * 8 + file + df);
                         let can_capture = Some(to) == self.en_passant_square || {
-                            self.get_piece(to).map_or(false, |p| p.color != self.side_to_play)
+                            self.get_piece(to).map_or(false, |p| p.color != self.side_to_play())
                         };
                         if can_capture {
                             let promotion_targets = if rank + dr == 0 || rank + dr == 7 {
@@ -487,7 +476,7 @@ impl BoardState {
                         }
                         let to = Square(r * 8 + f);
                         if let Some(cap) = self.get_piece(to) {
-                            if cap.color == self.side_to_play {
+                            if cap.color == self.side_to_play() {
                                 continue;
                             }
                         }
@@ -514,7 +503,7 @@ impl BoardState {
                             }
                             let to = Square(r * 8 + f);
                             if let Some(cap) = self.get_piece(to) {
-                                if cap.color != self.side_to_play {
+                                if cap.color != self.side_to_play() {
                                     result.push(Move { from, to, promotion: None });
                                 }
                                 break;
@@ -526,14 +515,14 @@ impl BoardState {
             }
         }
         // TODO: dedup (anchor:EJahPttWSGBsjB)
-        match self.side_to_play {
+        match self.side_to_play() {
             Color::White => {
-                if self.white_can_oo &&
+                if self.flags.contains(BoardFlags::WHITE_CAN_OO) &&
                    self.get_piece(Square(5)).is_none() &&
                    self.get_piece(Square(6)).is_none() {
                     result.push(Move { from: Square(4), to: Square(6), promotion: None });
                 }
-                if self.white_can_ooo &&
+                if self.flags.contains(BoardFlags::WHITE_CAN_OOO) &&
                    self.get_piece(Square(1)).is_none() &&
                    self.get_piece(Square(2)).is_none() &&
                    self.get_piece(Square(3)).is_none() {
@@ -541,12 +530,12 @@ impl BoardState {
                 }
             }
             Color::Black => {
-                if self.black_can_oo &&
+                if self.flags.contains(BoardFlags::BLACK_CAN_OO) &&
                    self.get_piece(Square(56 + 5)).is_none() &&
                    self.get_piece(Square(56 + 6)).is_none() {
                     result.push(Move { from: Square(56 + 4), to: Square(56 + 6), promotion: None });
                 }
-                if self.black_can_ooo &&
+                if self.flags.contains(BoardFlags::BLACK_CAN_OOO) &&
                    self.get_piece(Square(56 + 1)).is_none() &&
                    self.get_piece(Square(56 + 2)).is_none() &&
                    self.get_piece(Square(56 + 3)).is_none() {

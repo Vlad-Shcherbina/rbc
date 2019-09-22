@@ -44,7 +44,7 @@ fn main() {
             break;
         }
 
-        let player = match board.side_to_play {
+        let player = match board.side_to_play() {
             Color::White => &mut player1,
             Color::Black => &mut player2,
         };
@@ -57,7 +57,7 @@ fn main() {
         let requested_move = player.choose_move(&mut html);
         if let Some(rm) = &requested_move {
             let mut fog_state = board.clone();
-            fog_state.fog_of_war(board.side_to_play);
+            fog_state.fog_of_war(board.side_to_play());
             assert!(fog_state.all_sensible_requested_moves().contains(rm));
         }
         let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));

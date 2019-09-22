@@ -212,26 +212,44 @@ impl From<fen::Piece> for Piece {
     }
 }
 
+bitflags::bitflags! {
+    pub struct BoardFlags: u8 {
+        const WHITE_TO_PLAY = 0b00001;
+        const WHITE_CAN_OO  = 0b00010;
+        const WHITE_CAN_OOO = 0b00100;
+        const BLACK_CAN_OO  = 0b01000;
+        const BLACK_CAN_OOO = 0b10000;
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoardState {
     pieces: [u32; 8],
-    pub side_to_play: Color,
-    pub white_can_oo: bool,
-    pub white_can_ooo: bool,
-    pub black_can_oo: bool,
-    pub black_can_ooo: bool,
+    pub flags: BoardFlags,
     pub en_passant_square: Option<Square>,
 }
 
 impl From<fen::BoardState> for BoardState {
     fn from(b: fen::BoardState) -> BoardState {
+        let mut flags = BoardFlags::empty();
+        if b.side_to_play == fen::Color::White {
+            flags |= BoardFlags::WHITE_TO_PLAY;
+        }
+        if b.white_can_oo {
+            flags |= BoardFlags::WHITE_CAN_OO;
+        }
+        if b.white_can_ooo {
+            flags |= BoardFlags::WHITE_CAN_OOO;
+        }
+        if b.black_can_oo {
+            flags |= BoardFlags::BLACK_CAN_OO;
+        }
+        if b.black_can_ooo {
+            flags |= BoardFlags::BLACK_CAN_OOO;
+        }
         let mut result = BoardState {
             pieces: [0, 0, 0, 0, 0, 0, 0, 0],
-            side_to_play: b.side_to_play.into(),
-            white_can_oo: b.white_can_oo,
-            white_can_ooo: b.white_can_ooo,
-            black_can_oo: b.black_can_oo,
-            black_can_ooo: b.black_can_ooo,
+            flags,
             en_passant_square: b.en_passant_square.map(|s| Square(s as i8)),
         };
         for (i, p) in b.pieces.into_iter().enumerate() {
@@ -244,6 +262,14 @@ impl From<fen::BoardState> for BoardState {
 impl BoardState {
     pub fn initial() -> BoardState {
         fen::BoardState::from_fen(STARTING_FEN).unwrap().into()
+    }
+
+    pub fn side_to_play(&self) -> Color {
+        if self.flags.contains(BoardFlags::WHITE_TO_PLAY) {
+            Color::White
+        } else {
+            Color::Black
+        }
     }
 
     pub fn get_piece(&self, i: Square) -> Option<Piece> {
@@ -262,7 +288,7 @@ impl BoardState {
 
     pub fn render(&self) -> Vec<String> {
         let mut result = Vec::new();
-        result.push(format!("{:?} to move", self.side_to_play));
+        result.push(format!("{:?} to move", self.side_to_play()));
         for rank in (0..8).rev() {
             let mut line = (rank + 1).to_string();
             for file in 0..8 {
@@ -286,12 +312,10 @@ impl BoardState {
         self.en_passant_square = None;
         match color {
             Color::White => {
-                self.black_can_oo = true;
-                self.black_can_ooo = true;
+                self.flags |= BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO;
             }
             Color::Black => {
-                self.white_can_oo = true;
-                self.white_can_ooo = true;
+                self.flags |= BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO;
             }
         }
     }

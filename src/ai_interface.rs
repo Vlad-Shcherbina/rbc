@@ -49,14 +49,14 @@ struct RandomPlayer {
 
 impl Player for RandomPlayer {
     fn handle_opponent_move(&mut self, capture_square: Option<Square>, _html: &mut dyn Write) {
-        assert!(self.color != self.state.side_to_play);
+        assert!(self.color != self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         self.state.make_move_under_fog(capture_square);
     }
 
     fn choose_sense(&mut self, _html: &mut dyn Write) -> Square {
-        assert_eq!(self.color, self.state.side_to_play);
+        assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         Square(self.rng.gen_range(0, 64))
@@ -66,14 +66,14 @@ impl Player for RandomPlayer {
         _sense: Square, _sense_result: &[(Square, Option<Piece>)],
         _html: &mut dyn Write,
     ) {
-        assert_eq!(self.color, self.state.side_to_play);
+        assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         info!("after sense: {:#?}", self.state.render());
     }
 
     fn choose_move(&mut self, _html: &mut dyn Write) -> Option<Move> {
-        assert_eq!(self.color, self.state.side_to_play);
+        assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
         if self.rng.gen_bool(0.5) {
@@ -88,7 +88,7 @@ impl Player for RandomPlayer {
         _requested: Option<Move>, taken: Option<Move>, _capture_square: Option<Square>,
         _html: &mut dyn Write,
     ) {
-        assert_eq!(self.color, self.state.side_to_play);
+        assert_eq!(self.color, self.state.side_to_play());
         self.state.make_move(taken);
         self.state.fog_of_war(self.color);
         info!("after move: {:#?}", self.state.render());
@@ -106,7 +106,7 @@ fn random_move(rng: &mut impl RngCore, state: &BoardState) -> Move {
     loop {
         from = Square(rng.gen_range(0, 64));
         let p = state.get_piece(from);
-        if p.is_some() && p.unwrap().color == state.side_to_play {
+        if p.is_some() && p.unwrap().color == state.side_to_play() {
             break;
         }
     }
@@ -114,7 +114,7 @@ fn random_move(rng: &mut impl RngCore, state: &BoardState) -> Move {
     loop {
         to = Square(rng.gen_range(0, 64));
         let p = state.get_piece(to);
-        if p.is_some() && p.unwrap().color == state.side_to_play {
+        if p.is_some() && p.unwrap().color == state.side_to_play() {
             continue;
         }
         let dr = (from.0 / 8 - to.0 / 8).abs();

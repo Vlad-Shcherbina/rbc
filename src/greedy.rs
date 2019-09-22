@@ -33,7 +33,7 @@ struct GreedyPlayer {
 
 impl Player for GreedyPlayer {
     fn handle_opponent_move(&mut self, capture_square: Option<Square>, html: &mut dyn Write) {
-        assert!(self.color != self.infoset.fog_state.side_to_play);
+        assert!(self.color != self.infoset.fog_state.side_to_play());
         info!("opp capture: {:?}", capture_square);
         self.infoset.opponent_move(capture_square);
         info!("{} possible states after capture", self.infoset.possible_states.len());
@@ -43,7 +43,7 @@ impl Player for GreedyPlayer {
     }
 
     fn choose_sense(&mut self, html: &mut dyn Write) -> Square {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play);
+        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", self.infoset.possible_states.len()).unwrap();
         info!("{:#?}", self.infoset.render());
         write!(html, "<p>{}</p>", self.infoset.to_html()).unwrap();
@@ -77,7 +77,7 @@ impl Player for GreedyPlayer {
         sense: Square, sense_result: &[(Square, Option<Piece>)],
         html: &mut dyn Write,
     ) {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play);
+        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
         info!("sense {:?} -> {:?}", sense, sense_result);
         self.infoset.sense(sense, sense_result);
         info!("{:#?}", self.infoset.render());
@@ -86,7 +86,7 @@ impl Player for GreedyPlayer {
     }
 
     fn choose_move(&mut self, html: &mut dyn Write) -> Option<Move> {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play);
+        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
 
         let candidates = self.infoset.fog_state.all_sensible_requested_moves();
@@ -165,10 +165,10 @@ impl Player for GreedyPlayer {
     }
 
     fn handle_move(&mut self,
-        requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>, 
+        requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
         _html: &mut dyn Write,
     ) {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play);
+        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
         info!("requested move: {:?}", requested);
         info!("taken move :    {:?}", taken);
         info!("capture square: {:?}", capture_square);
@@ -263,10 +263,10 @@ fn evaluate(s: &BoardState, max_depth: i32, mut alpha: i64, beta: i64) -> i64 {
     let mut opp_king = false;
     for i in 0..64 {
         if let Some(p) = s.get_piece(Square(i)) {
-            let sign = if p.color == s.side_to_play { 1 } else { - 1};
+            let sign = if p.color == s.side_to_play() { 1 } else { - 1};
             static_val += 100 * sign * material_value(p.kind);
             if p.kind == PieceKind::King {
-                if p.color == s.side_to_play {
+                if p.color == s.side_to_play() {
                     my_king = true;
                 } else {
                     opp_king = true;
