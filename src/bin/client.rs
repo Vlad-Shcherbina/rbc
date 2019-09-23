@@ -5,6 +5,7 @@ use rbc::logger::{ThreadLocalLogger, WriteLogger};
 use rbc::api;
 use rbc::game::{Color, Move};
 use rbc::ai_interface::Ai;
+use rbc::infoset::Infoset;
 
 pub fn play_game_no_panic(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let ai = std::panic::AssertUnwindSafe(ai);
@@ -28,6 +29,8 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
 
     let mut html = std::fs::File::create(format!("logs/game_{:05}.html", game_id)).unwrap();
     writeln!(html, "{}", rbc::html::PREAMBLE).unwrap();
+
+    let mut infoset = Infoset::new(color);
 
     loop {
         let gs = api::game_status(game_id).expect("TODO");
@@ -56,12 +59,13 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             };
 
             if halfmove_number > 0 {
-                player.handle_opponent_move(capture_square, &mut html);
+                infoset.opponent_move(capture_square);
+                player.handle_opponent_move(capture_square, &infoset, &mut html);
             } else {
                 assert!(capture_square.is_none());
             }
 
-            let sense = player.choose_sense(&mut html);
+            let sense = player.choose_sense(&infoset, &mut html);
             let sense_result = match api::sense(game_id, sense) {
                 Ok(sr) => sr,
                 Err(api::Error::HttpError(400)) => {
@@ -71,9 +75,10 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
                 }
                 Err(e) => panic!("{:?}", e),
             };
-            player.handle_sense(sense, &sense_result, &mut html);
+            infoset.sense(sense, &sense_result);
+            player.handle_sense(sense, &sense_result, &infoset, &mut html);
 
-            let requested = player.choose_move(&mut html);
+            let requested = player.choose_move(&infoset, &mut html);
             let req_str = requested.map_or("a1a1".to_owned(), |r| r.to_uci());
             let mr = match api::make_move(game_id, req_str) {
                 Ok(mr) => mr,
@@ -84,10 +89,14 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
                 }
                 Err(e) => panic!("{:?}", e),
             };
+            let requested = mr.requested.map(|m| Move::from_uci(&m));
+            let taken = mr.taken.map(|m| Move::from_uci(&m));
+            infoset.my_move(requested, taken, mr.capture_square);
             player.handle_move(
-                mr.requested.map(|m| Move::from_uci(&m)),
-                mr.taken.map(|m| Move::from_uci(&m)),
+                requested,
+                taken,
                 mr.capture_square,
+                &infoset,
                 &mut html);
 
             match api::end_turn(game_id) {

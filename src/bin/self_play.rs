@@ -1,5 +1,6 @@
 use rbc::game::{Square, Color, BoardState, PieceKind};
 use rbc::ai_interface::Ai;
+use rbc::infoset::Infoset;
 
 fn main() {
     dbg!(std::mem::size_of::<BoardState>());
@@ -13,6 +14,8 @@ fn main() {
 
     let mut player1 = ai1.make_player(Color::White, 424242);
     let mut player2 = ai2.make_player(Color::Black, 424242);
+    let mut infoset1 = Infoset::new(Color::White);
+    let mut infoset2 = Infoset::new(Color::Black);
 
     let mut board = BoardState::initial();
     let mut move_number = 0;
@@ -48,13 +51,20 @@ fn main() {
             Color::White => &mut player1,
             Color::Black => &mut player2,
         };
+        let infoset = match board.side_to_play() {
+            Color::White => &mut infoset1,
+            Color::Black => &mut infoset2,
+        };
 
         if move_number > 0 {
-            player.handle_opponent_move(last_capture_square, &mut html);
+            infoset.opponent_move(last_capture_square);
+            player.handle_opponent_move(last_capture_square, infoset, &mut html);
         }
-        let sense = player.choose_sense(&mut html);
-        player.handle_sense(sense, &board.sense(sense), &mut html);
-        let requested_move = player.choose_move(&mut html);
+        let sense = player.choose_sense(infoset, &mut html);
+        let sense_result = board.sense(sense);
+        infoset.sense(sense, &sense_result);
+        player.handle_sense(sense, &sense_result, infoset, &mut html);
+        let requested_move = player.choose_move(infoset, &mut html);
         if let Some(rm) = &requested_move {
             let mut fog_state = board.clone();
             fog_state.fog_of_war(board.side_to_play());
@@ -62,7 +72,8 @@ fn main() {
         }
         let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
         last_capture_square = board.make_move(taken_move);
-        player.handle_move(requested_move, taken_move, last_capture_square, &mut html);
+        infoset.my_move(requested_move, taken_move, last_capture_square);
+        player.handle_move(requested_move, taken_move, last_capture_square, infoset, &mut html);
 
         move_number += 1;
     }

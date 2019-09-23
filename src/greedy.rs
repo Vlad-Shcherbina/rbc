@@ -12,11 +12,9 @@ pub struct GreedyAi {
 
 impl Ai for GreedyAi {
     fn make_player(&self, color: Color, seed: u64) -> Box<dyn Player> {
-        let infoset = Infoset::new(color);
         Box::new(GreedyPlayer {
             rng: StdRng::seed_from_u64(seed),
             color,
-            infoset,
             summary: Vec::new(),
             experiment: self.experiment,
         })
@@ -26,27 +24,29 @@ impl Ai for GreedyAi {
 struct GreedyPlayer {
     rng: StdRng,
     color: Color,
-    infoset: Infoset,
     summary: Vec<u8>,
     experiment: bool,
 }
 
 impl Player for GreedyPlayer {
-    fn handle_opponent_move(&mut self, capture_square: Option<Square>, html: &mut dyn Write) {
-        assert!(self.color != self.infoset.fog_state.side_to_play());
+    fn handle_opponent_move(&mut self,
+        capture_square: Option<Square>,
+        infoset: &Infoset,
+        html: &mut dyn Write,
+    ) {
+        assert_eq!(self.color, infoset.fog_state.side_to_play());
         info!("opp capture: {:?}", capture_square);
-        self.infoset.opponent_move(capture_square);
-        info!("{} possible states after capture", self.infoset.possible_states.len());
+        info!("{} possible states after capture", infoset.possible_states.len());
         if let Some(cs) = capture_square {
             writeln!(html, "<p>Opponent captured <b>{:?}</b>.</p>", cs).unwrap();
         }
     }
 
-    fn choose_sense(&mut self, html: &mut dyn Write) -> Square {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
-        write!(self.summary, "{:>6}", self.infoset.possible_states.len()).unwrap();
-        info!("{:#?}", self.infoset.render());
-        write!(html, "<p>{}</p>", self.infoset.to_html()).unwrap();
+    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Square {
+        assert_eq!(self.color, infoset.fog_state.side_to_play());
+        write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
+        info!("{:#?}", infoset.render());
+        write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
         let timer = std::time::Instant::now();
         if self.experiment {
             unimplemented!("experiment")
@@ -57,7 +57,7 @@ impl Player for GreedyPlayer {
                 let mut line = String::new();
                 for file in 1..7 {
                     let sq = Square(rank * 8 + file);
-                    let e = self.infoset.sense_entropy(sq) + self.rng.gen_range(0.0, 1e-4);
+                    let e = infoset.sense_entropy(sq) + self.rng.gen_range(0.0, 1e-4);
                     line.push_str(&format!("{:>7.2}", e));
                     if e > best_sense_rank {
                         best_sense_rank = e;
@@ -75,23 +75,23 @@ impl Player for GreedyPlayer {
 
     fn handle_sense(&mut self,
         sense: Square, sense_result: &[(Square, Option<Piece>)],
+        infoset: &Infoset,
         html: &mut dyn Write,
     ) {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
+        assert_eq!(self.color, infoset.fog_state.side_to_play());
         info!("sense {:?} -> {:?}", sense, sense_result);
-        self.infoset.sense(sense, sense_result);
-        info!("{:#?}", self.infoset.render());
-        write!(self.summary, " {:>5}", self.infoset.possible_states.len()).unwrap();
-        write!(html, "<p>{}</p>", self.infoset.to_html()).unwrap();
+        info!("{:#?}", infoset.render());
+        write!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
+        write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
     }
 
-    fn choose_move(&mut self, html: &mut dyn Write) -> Option<Move> {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
+    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Option<Move> {
+        assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
 
-        let candidates = self.infoset.fog_state.all_sensible_requested_moves();
+        let candidates = infoset.fog_state.all_sensible_requested_moves();
         let m = candidates.len();
-        let n = self.infoset.possible_states.len();
+        let n = infoset.possible_states.len();
         let mut payoff = vec![0f32; m * n];
 
         let mut eval_hash = std::collections::HashMap::new();
@@ -105,7 +105,7 @@ impl Player for GreedyPlayer {
         };
 
         for (i, &requested) in candidates.iter().enumerate() {
-            for (j, s) in self.infoset.possible_states.iter().enumerate() {
+            for (j, s) in infoset.possible_states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
@@ -121,7 +121,7 @@ impl Player for GreedyPlayer {
         jx.sort_by(|&j1, &j2| sol.strategy2[j2].partial_cmp(&sol.strategy2[j1]).unwrap());
         jx = jx.into_iter().take(6).take_while(|&j| sol.strategy2[j] > 0.01).collect();
         for &j in &jx {
-            info!("dangerous: {} {:#?}", sol.strategy2[j], self.infoset.possible_states[j].render());
+            info!("dangerous: {} {:#?}", sol.strategy2[j], infoset.possible_states[j].render());
         }
         info!("game value: {}", sol.game_value);
         let mut ix: Vec<usize> = (0..m).collect();
@@ -135,7 +135,7 @@ impl Player for GreedyPlayer {
         writeln!(html, "<tr>").unwrap();
         writeln!(html, "<td></td><td></td>").unwrap();
         for &j in &jx {
-            writeln!(html, "<td>{}</td>", self.infoset.possible_states[j].to_html()).unwrap();
+            writeln!(html, "<td>{}</td>", infoset.possible_states[j].to_html()).unwrap();
         }
         writeln!(html, "</tr>").unwrap();
         writeln!(html, "<tr>").unwrap();
@@ -147,7 +147,7 @@ impl Player for GreedyPlayer {
         for &i in &ix {
             writeln!(html, "<tr>").unwrap();
             writeln!(html, "<td>{}{}</td>",
-                self.infoset.fog_state.get_piece(candidates[i].from).unwrap().to_emoji(),
+                infoset.fog_state.get_piece(candidates[i].from).unwrap().to_emoji(),
                 candidates[i].to_uci(),
             ).unwrap();
             writeln!(html, "<td class=numcol>{:.3}</td>", sol.strategy1[i]).unwrap();
@@ -166,16 +166,16 @@ impl Player for GreedyPlayer {
 
     fn handle_move(&mut self,
         requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
+        infoset: &Infoset,
         _html: &mut dyn Write,
     ) {
-        assert_eq!(self.color, self.infoset.fog_state.side_to_play());
+        assert_eq!(self.color.opposite(), infoset.fog_state.side_to_play());
         info!("requested move: {:?}", requested);
         info!("taken move :    {:?}", taken);
         info!("capture square: {:?}", capture_square);
-        self.infoset.my_move(requested, taken, capture_square);
-        info!("{} possible states after my move", self.infoset.possible_states.len());
-        info!("{:#?}", self.infoset.fog_state.render());
-        writeln!(self.summary, " {:>5}", self.infoset.possible_states.len()).unwrap();
+        info!("{} possible states after my move", infoset.possible_states.len());
+        info!("{:#?}", infoset.fog_state.render());
+        writeln!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
     }
 
     fn get_summary(&self) -> String {
