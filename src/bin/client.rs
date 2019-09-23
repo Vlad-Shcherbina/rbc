@@ -1,11 +1,12 @@
 use std::io::Write;
 use log::{info, error};
-use rand::Rng;
+use rand::prelude::*;
 use rbc::logger::{ThreadLocalLogger, WriteLogger};
 use rbc::api;
 use rbc::game::{Color, Move};
 use rbc::ai_interface::Ai;
 use rbc::infoset::Infoset;
+use rbc::distr;
 
 pub fn play_game_no_panic(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let ai = std::panic::AssertUnwindSafe(ai);
@@ -18,6 +19,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let seed = rand::thread_rng().gen();
     info!("player seed: {}", seed);
     let mut player = ai.make_player(color, seed);
+    let mut rng = StdRng::seed_from_u64(seed + 1);
 
     let mut halfmove_number = match color {
         Color::White => 0,
@@ -65,7 +67,10 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
                 assert!(capture_square.is_none());
             }
 
-            let sense = player.choose_sense(&infoset, &mut html);
+            let sense_distr = player.choose_sense(&infoset, &mut html);
+            let sense = *distr::draw(&sense_distr, &mut rng);
+            writeln!(html, "<p>sense: {:?}</p>", sense_distr).unwrap();
+            writeln!(html, "<p>sense: {:?}</p>", sense).unwrap();
             let sense_result = match api::sense(game_id, sense) {
                 Ok(sr) => sr,
                 Err(api::Error::HttpError(400)) => {
@@ -78,7 +83,11 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             infoset.sense(sense, &sense_result);
             player.handle_sense(sense, &sense_result, &infoset, &mut html);
 
-            let requested = player.choose_move(&infoset, &mut html);
+            let requested_distr = player.choose_move(&infoset, &mut html);
+            let requested = distr::draw(&requested_distr, &mut rng);
+            writeln!(html, "<p>requested: {:?}</p>", requested_distr).unwrap();
+            writeln!(html, "<p>requested: {:?}</p>", requested).unwrap();
+
             let req_str = requested.map_or("a1a1".to_owned(), |r| r.to_uci());
             let mr = match api::make_move(game_id, req_str) {
                 Ok(mr) => mr,

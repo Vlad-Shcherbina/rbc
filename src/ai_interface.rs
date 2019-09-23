@@ -13,12 +13,12 @@ pub trait Player {
         capture_square: Option<Square>,
         infoset: &Infoset,
         html: &mut dyn Write);
-    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Square;
+    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)>;
     fn handle_sense(&mut self,
         sense: Square, sense_result: &[(Square, Option<Piece>)],
         infoset: &Infoset,
         html: &mut dyn Write);
-    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Option<Move>;
+    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)>;
     fn handle_move(&mut self,
         requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
         infoset: &Infoset,
@@ -63,11 +63,17 @@ impl Player for RandomPlayer {
         self.state.make_move_under_fog(capture_square);
     }
 
-    fn choose_sense(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Square {
+    fn choose_sense(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Square, f32)> {
         assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
-        Square(self.rng.gen_range(0, 64))
+        let mut result = Vec::new();
+        for rank in 1..7 {
+            for file in 1..7 {
+                result.push((Square(rank * 8 + file), 1.0));
+            }
+        }
+        result
     }
 
     fn handle_sense(&mut self,
@@ -81,16 +87,17 @@ impl Player for RandomPlayer {
         info!("after sense: {:#?}", self.state.render());
     }
 
-    fn choose_move(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Option<Move> {
+    fn choose_move(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
         assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
-        if self.rng.gen_bool(0.5) {
-            Some(random_move(&mut self.rng, &self.state))
-        } else {
-            let all_moves = self.state.all_sensible_requested_moves();
-            Some(all_moves[self.rng.gen_range(0, all_moves.len())])
-        }
+        // TODO: with some probability, try arbitrary random moves,
+        // not only sensible ones
+        self.state.all_sensible_requested_moves()
+            .into_iter()
+            .map(|m| (Some(m), 1.0))
+            .chain(Some((None, 1.0)))
+            .collect()
     }
 
     fn handle_move(&mut self,

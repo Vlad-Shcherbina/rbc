@@ -1,6 +1,8 @@
+use rand::prelude::*;
 use rbc::game::{Square, Color, BoardState, PieceKind};
 use rbc::ai_interface::Ai;
 use rbc::infoset::Infoset;
+use rbc::distr;
 
 fn main() {
     dbg!(std::mem::size_of::<BoardState>());
@@ -8,6 +10,8 @@ fn main() {
     // log::set_max_level(log::LevelFilter::Info);
 
     let timer = std::time::Instant::now();
+
+    let mut rng = StdRng::seed_from_u64(424242);
 
     let ai1 = rbc::greedy::GreedyAi { experiment: false };
     let ai2 = rbc::greedy::GreedyAi { experiment: false };
@@ -60,11 +64,13 @@ fn main() {
             infoset.opponent_move(last_capture_square);
             player.handle_opponent_move(last_capture_square, infoset, &mut html);
         }
-        let sense = player.choose_sense(infoset, &mut html);
+        let sense_distr = player.choose_sense(infoset, &mut html);
+        let sense = *distr::draw(&sense_distr, &mut rng);
         let sense_result = board.sense(sense);
         infoset.sense(sense, &sense_result);
         player.handle_sense(sense, &sense_result, infoset, &mut html);
-        let requested_move = player.choose_move(infoset, &mut html);
+        let requested_move_distr = player.choose_move(infoset, &mut html);
+        let requested_move = *distr::draw(&requested_move_distr, &mut rng);
         if let Some(rm) = &requested_move {
             let mut fog_state = board.clone();
             fog_state.fog_of_war(board.side_to_play());

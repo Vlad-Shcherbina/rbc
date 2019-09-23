@@ -42,7 +42,7 @@ impl Player for GreedyPlayer {
         }
     }
 
-    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Square {
+    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)> {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
         info!("{:#?}", infoset.render());
@@ -51,25 +51,25 @@ impl Player for GreedyPlayer {
         if self.experiment {
             unimplemented!("experiment")
         } else {
-            let mut best_sense_rank = -1.0;
-            let mut best_sense = Square(0);
+            let mut hz = Vec::new();
             for rank in (1..7).rev() {
                 let mut line = String::new();
                 for file in 1..7 {
                     let sq = Square(rank * 8 + file);
-                    let e = infoset.sense_entropy(sq) + self.rng.gen_range(0.0, 1e-4);
+                    let e = infoset.sense_entropy(sq);
                     line.push_str(&format!("{:>7.2}", e));
-                    if e > best_sense_rank {
-                        best_sense_rank = e;
-                        best_sense = sq;
-                    }
+                    hz.push((sq, e));
                 }
                 info!("entropy: {}", line)
             }
-            info!("best sense: {:?} {:.3}", best_sense, best_sense_rank);
             write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-            writeln!(html, "<p>Sense: <b>{}</b></p>", best_sense.to_san()).unwrap();
-            best_sense
+            let m: f64 = hz.iter()
+                .map(|&(_, e)| e)
+                .max_by(|e1, e2| e1.partial_cmp(e2).unwrap())
+                .unwrap();
+            hz.into_iter()
+                .filter_map(|(sq, e)| if e >= m - 1e-4 { Some((sq, 1.0)) } else { None })
+                .collect()
         }
     }
 
@@ -85,7 +85,7 @@ impl Player for GreedyPlayer {
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
     }
 
-    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Option<Move> {
+    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
 
@@ -158,10 +158,12 @@ impl Player for GreedyPlayer {
         }
         writeln!(html, "</table>").unwrap();
 
-        let dist = rand::distributions::WeightedIndex::new(&sol.strategy1).unwrap();
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-
-        Some(candidates[dist.sample(&mut self.rng)])
+        candidates.into_iter()
+            .map(Option::Some)
+            .zip(sol.strategy1)
+            .filter(|&(_, p)| p >= 1e-3)
+            .collect()
     }
 
     fn handle_move(&mut self,
