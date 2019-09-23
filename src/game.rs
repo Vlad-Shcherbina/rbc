@@ -301,6 +301,38 @@ impl BoardState {
 
         result
     }
+
+    pub fn clear_irrelevant_en_passant_square(&mut self) {
+        if self.en_passant_square.is_none() {
+            return;
+        }
+        let Square(ep) = self.en_passant_square.unwrap();
+        let file = ep % 8;
+        match self.side_to_play() {
+            Color::White => {
+                if file > 0 && self.get_piece(Square(ep - 9)) ==
+                    Some(Piece { color: Color::White, kind: PieceKind::Pawn}) {
+                    return;
+                }
+                if file < 7 && self.get_piece(Square(ep - 7)) ==
+                    Some(Piece { color: Color::White, kind: PieceKind::Pawn}) {
+                    return;
+                }
+            }
+            Color::Black => {
+                if file > 0 && self.get_piece(Square(ep + 7)) ==
+                    Some(Piece { color: Color::Black, kind: PieceKind::Pawn}) {
+                    return;
+                }
+                if file < 7 && self.get_piece(Square(ep + 9)) ==
+                    Some(Piece { color: Color::Black, kind: PieceKind::Pawn}) {
+                    return;
+                }
+            }
+        }
+        self.en_passant_square = None;
+    }
+
     pub fn fog_of_war(&mut self, color: Color) {
         for sq in 0..64 {
             let sq = Square(sq);

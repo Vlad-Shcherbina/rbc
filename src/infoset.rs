@@ -43,6 +43,7 @@ impl Infoset {
                 let mut new_state = state.clone();
                 let c = new_state.make_move(m);
                 if c == capture_square {
+                    new_state.clear_irrelevant_en_passant_square();
                     new_possible_states.push(new_state);
                 }
             }
@@ -105,6 +106,7 @@ impl Infoset {
             if t == taken_move {
                 let c = state.make_move(t);
                 if c == capture_square {
+                    state.clear_irrelevant_en_passant_square();
                     new_possible_states.push(state);
                 }
             }
