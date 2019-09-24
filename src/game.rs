@@ -364,6 +364,21 @@ impl BoardState {
         }
         result
     }
+
+    pub fn find_king(&self, color: Color) -> Option<Square> {
+        (0..64).map(Square)
+        .find(|&s| self.get_piece(s) ==
+                   Some(Piece { color, kind: PieceKind::King }))
+    }
+
+    pub fn winner(&self) -> Option<Color> {
+        match (self.find_king(Color::White), self.find_king(Color::Black)) {
+            (Some(_), Some(_)) => None,
+            (Some(_), None) => Some(Color::White),
+            (None, Some(_)) => Some(Color::Black),
+            (None, None) => unreachable!(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
