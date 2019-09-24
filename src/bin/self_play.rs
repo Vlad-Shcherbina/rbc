@@ -76,20 +76,18 @@ impl GameState {
 }
 
 fn main() {
-    dbg!(std::mem::size_of::<BoardState>());
     // let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
     // log::set_max_level(log::LevelFilter::Info);
 
     let timer = std::time::Instant::now();
 
-    let ai1 = rbc::greedy::GreedyAi { experiment: false };
+    let ai1 = rbc::greedy::GreedyAi { experiment: true };
     let ai2 = rbc::greedy::GreedyAi { experiment: false };
-
-    let mut game = GameState::new(&ai1, &ai2, 424242);
 
     let mut rng = StdRng::seed_from_u64(424242);
     let mut html = std::io::sink();
 
+    /*let mut game = GameState::new(&ai1, &ai2, 424242);
     while !game.is_over() {
         dbg!(game.move_number);
         let sense_distr = game.phase1(&mut html);
@@ -101,7 +99,53 @@ fn main() {
     println!("{:?} won", game.board.winner().unwrap());
     println!("{:#?}", game.board.render());
     println!("white summary:\n{}", game.player_white.get_summary());
-    println!("black summary:\n{}", game.player_black.get_summary());
+    println!("black summary:\n{}", game.player_black.get_summary());*/
+
+    use std::collections::HashMap;
+    let mut outcome_cnt: HashMap<(Color, Color), i32> = HashMap::new();
+    loop {
+        let mut game1 = GameState::new(&ai1, &ai2, 424242);
+        let mut game2 = GameState::new(&ai2, &ai1, 424242);
+        while !game1.is_over() && !game2.is_over() {
+            // println!("{} both", game1.move_number);
+            let mut sense_distr1 = game1.phase1(&mut html);
+            let mut sense_distr2 = game2.phase1(&mut html);
+            distr::normalize(&mut sense_distr1);
+            distr::normalize(&mut sense_distr2);
+            let (&sense1, &sense2) = distr::draw_correlated(&sense_distr1, &sense_distr2, &mut rng);
+            // println!("sense: {:?} {:?}", sense1, sense2);
+            let mut requested_distr1 = game1.phase2(sense1, &mut html);
+            let mut requested_distr2 = game2.phase2(sense2, &mut html);
+            distr::normalize(&mut requested_distr1);
+            distr::normalize(&mut requested_distr2);
+            let (&requested1, &requested2) = distr::draw_correlated(&requested_distr1, &requested_distr2, &mut rng);
+            // println!("move: {:?} {:?}", requested1, requested2);
+            game1.phase3(requested1, &mut html);
+            game2.phase3(requested2, &mut html);
+        }
+        // println!("---------");
+        while !game1.is_over() {
+            // println!("{} game1", game1.move_number);
+            let sense_distr = game1.phase1(&mut html);
+            let sense = *distr::draw(&sense_distr, &mut rng);
+            let requested_distr = game1.phase2(sense, &mut html);
+            let requested = *distr::draw(&requested_distr, &mut rng);
+            game1.phase3(requested, &mut html);
+        }
+        while !game2.is_over() {
+            // println!("{} game2", game2.move_number);
+            let sense_distr = game2.phase1(&mut html);
+            let sense = *distr::draw(&sense_distr, &mut rng);
+            let requested_distr = game2.phase2(sense, &mut html);
+            let requested = *distr::draw(&requested_distr, &mut rng);
+            game2.phase3(requested, &mut html);
+        }
+        println!("moves: {} {}", game1.move_number, game2.move_number);
+        let outcome = (game1.board.winner().unwrap(), game2.board.winner().unwrap());
+        println!("outcome: {:?}", outcome);
+        *outcome_cnt.entry(outcome).or_default() += 1;
+        println!("{:?}", outcome_cnt);
+    }
 
     println!("it took {:.3}s", timer.elapsed().as_secs_f64());
 }

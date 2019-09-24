@@ -48,29 +48,25 @@ impl Player for GreedyPlayer {
         info!("{:#?}", infoset.render());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
         let timer = std::time::Instant::now();
-        if self.experiment {
-            unimplemented!("experiment")
-        } else {
-            let mut hz = Vec::new();
-            for rank in (1..7).rev() {
-                let mut line = String::new();
-                for file in 1..7 {
-                    let sq = Square(rank * 8 + file);
-                    let e = infoset.sense_entropy(sq);
-                    line.push_str(&format!("{:>7.2}", e));
-                    hz.push((sq, e));
-                }
-                info!("entropy: {}", line)
+        let mut hz = Vec::new();
+        for rank in (1..7).rev() {
+            let mut line = String::new();
+            for file in 1..7 {
+                let sq = Square(rank * 8 + file);
+                let e = infoset.sense_entropy(sq);
+                line.push_str(&format!("{:>7.2}", e));
+                hz.push((sq, e));
             }
-            write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-            let m: f64 = hz.iter()
-                .map(|&(_, e)| e)
-                .max_by(|e1, e2| e1.partial_cmp(e2).unwrap())
-                .unwrap();
-            hz.into_iter()
-                .filter_map(|(sq, e)| if e >= m - 1e-4 { Some((sq, 1.0)) } else { None })
-                .collect()
+            info!("entropy: {}", line)
         }
+        write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
+        let m: f64 = hz.iter()
+            .map(|&(_, e)| e)
+            .max_by(|e1, e2| e1.partial_cmp(e2).unwrap())
+            .unwrap();
+        hz.into_iter()
+            .filter_map(|(sq, e)| if e >= m - 1e-4 { Some((sq, 1.0)) } else { None })
+            .collect()
     }
 
     fn handle_sense(&mut self,
@@ -159,11 +155,17 @@ impl Player for GreedyPlayer {
         writeln!(html, "</table>").unwrap();
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-        candidates.into_iter()
+        let mut result: Vec<_> = candidates.into_iter()
             .map(Option::Some)
             .zip(sol.strategy1)
-            .filter(|&(_, p)| p >= 1e-3)
-            .collect()
+            // .filter(|&(_, p)| p >= 1e-3)
+            .collect();
+        if self.experiment {
+            for (_, p) in &mut result {
+                *p += 0.1 / m as f32;
+            }
+        }
+        result
     }
 
     fn handle_move(&mut self,
