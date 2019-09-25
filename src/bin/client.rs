@@ -219,7 +219,7 @@ fn main() {
     let max_challenge_threads = arg.abs() as usize;
     let accept_invites = arg >= 0;
 
-    let ai = rbc::greedy::GreedyAi { experiment: false };
+    let ai = rbc::greedy::GreedyAi { experiment: true };
 
     use std::sync::atomic::{AtomicBool, Ordering};
     let running = std::sync::Arc::new(AtomicBool::new(true));

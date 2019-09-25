@@ -105,8 +105,16 @@ impl Player for GreedyPlayer {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
-                let e = *eval_hash.entry(s2.clone()).or_insert_with(|| evaluate(&s2, depth, -3000, 3000));
-                payoff[i * n + j] = -e as f32;
+                let e = *eval_hash.entry(s2.clone()).or_insert_with(|| {
+                    let mut e = -evaluate(&s2, depth, -3000, 3000);
+                    if let Some(sq) = s2.find_king(s2.side_to_play()) {
+                        if !s2.all_attacks_to(sq, s2.side_to_play().opposite()).is_empty() {
+                            e += 50;
+                        }
+                    }
+                    e
+                });
+                payoff[i * n + j] = e as f32;
             }
             info!("{} rows left", m - 1 - i);
         }
@@ -155,17 +163,11 @@ impl Player for GreedyPlayer {
         writeln!(html, "</table>").unwrap();
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-        let mut result: Vec<_> = candidates.into_iter()
+        candidates.into_iter()
             .map(Option::Some)
             .zip(sol.strategy1)
-            // .filter(|&(_, p)| p >= 1e-3)
-            .collect();
-        if self.experiment {
-            for (_, p) in &mut result {
-                *p += 0.1 / m as f32;
-            }
-        }
-        result
+            .filter(|&(_, p)| p >= 1e-3)
+            .collect()
     }
 
     fn handle_move(&mut self,
