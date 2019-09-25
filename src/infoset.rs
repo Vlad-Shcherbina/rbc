@@ -1,16 +1,9 @@
-use std::collections::{HashMap, HashSet};
 use crate::game::{Square, Color, Piece, Move, BoardState};
 
 pub struct Infoset {
     pub color: Color,
     pub fog_state: BoardState,
     pub possible_states: Vec<BoardState>,
-}
-
-#[inline(never)]
-fn deduplicate(xs: &mut Vec<impl Eq + std::hash::Hash + Clone>) {
-    let mut seen = HashSet::with_capacity(xs.len());
-    xs.retain(|x| seen.insert(x.clone()));
 }
 
 impl Infoset {
@@ -33,7 +26,7 @@ impl Infoset {
             assert!(s.side_to_play() != self.color);
         }
 
-        let mut new_possible_states = Vec::new();
+        let mut new_possible_states = fnv::FnvHashSet::default();
         for state in &self.possible_states {
             let mut all_moves = vec![None];
             for m in state.all_moves() {
@@ -44,12 +37,11 @@ impl Infoset {
                 let c = new_state.make_move(m);
                 if c == capture_square {
                     new_state.clear_irrelevant_en_passant_square();
-                    new_possible_states.push(new_state);
+                    new_possible_states.insert(new_state);
                 }
             }
         }
-        self.possible_states = new_possible_states;
-        deduplicate(&mut self.possible_states);
+        self.possible_states = new_possible_states.into_iter().collect();
         self.fog_state.make_move_under_fog(capture_square);
     }
 
@@ -68,7 +60,7 @@ impl Infoset {
         let file = sense.0 % 8;
         assert!(1 <= rank && rank < 7);
         assert!(1 <= file && file < 7);
-        let mut cnt = HashMap::<u32, i32>::new();
+        let mut cnt = fnv::FnvHashMap::<u32, i32>::default();
         for s in &self.possible_states {
             let mut fingerprint = 0u32;
             for r in rank-1..=rank+1 {
@@ -80,12 +72,10 @@ impl Infoset {
             }
             *cnt.entry(fingerprint).or_default() += 1;
         }
-        let mut cnt: Vec<i32> = cnt.values().cloned().collect();
-        cnt.sort();  // to avoid HashMap nondeterminism
 
         let mut s = 0.0;
         let n = self.possible_states.len() as f64;
-        for v in cnt {
+        for &v in cnt.values() {
             let p = f64::from(v) / n;
             s -= p.log2() * p;
         }
@@ -99,7 +89,8 @@ impl Infoset {
             assert_eq!(s.side_to_play(), self.color);
         }
 
-        let mut new_possible_states = Vec::new();
+        let mut new_possible_states = fnv::FnvHashSet::default();
+        // TODO: is deduplication necessary?
         for mut state in self.possible_states.drain(..) {
             let t = requested_move.map(|m| state.requested_to_taken(m))
                 .and_then(std::convert::identity);  // flatten
@@ -107,12 +98,11 @@ impl Infoset {
                 let c = state.make_move(t);
                 if c == capture_square {
                     state.clear_irrelevant_en_passant_square();
-                    new_possible_states.push(state);
+                    new_possible_states.insert(state);
                 }
             }
         }
-        self.possible_states = new_possible_states;
-        deduplicate(&mut self.possible_states);  // TODO: is it necessary?
+        self.possible_states = new_possible_states.into_iter().collect();
         self.fog_state.make_move(taken_move);
     }
 
