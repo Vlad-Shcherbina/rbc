@@ -1,7 +1,7 @@
 use log::{info, error};
 use rusqlite::{Connection, params};
 use rbc::history::GameHistory;
-use rbc::game::{STARTING_FEN, Color, BoardState, Move};
+use rbc::game::{STARTING_FEN, Color, Square, BoardState, Move};
 
 #[allow(clippy::cognitive_complexity)]
 fn check_game(h: GameHistory, forgiving_en_passant: bool) {
@@ -38,6 +38,14 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         let all_moves: HashSet<_> = state.all_moves().into_iter().collect();
         let all_moves_naive: HashSet<_> = state.all_moves_naive().into_iter().collect();
         assert_eq!(all_moves, all_moves_naive);
+        for sq in (0..64).map(Square) {
+            if state.get_piece(sq).map_or(false, |p| p.color != state.side_to_play()) {
+                for am in state.all_attacks_to(sq, state.side_to_play()) {
+                    assert!(all_moves.contains(&am), "{:?}", am);
+                }
+            }
+        }
+
         if let Some(m) = taken_move {
             assert!(all_moves.contains(&m), "{:?}", m);
         }

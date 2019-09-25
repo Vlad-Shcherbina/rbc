@@ -545,4 +545,69 @@ impl BoardState {
         }
         result
     }
+
+    pub fn all_attacks_to(&self, to: Square, color: Color) -> Vec<Move> {
+        let mut result = Vec::new();
+        let rank = to.0 / 8;
+        let file = to.0 % 8;
+
+        let dr = match color {
+            Color::White => -1,
+            Color::Black => 1,
+        };
+        if 0 <= rank + dr && rank + dr < 8 {
+            for &df in &[-1, 1] {
+                if file + df < 0 || file + df >= 8 {
+                    continue;
+                }
+                let from = Square(8 * (rank + dr) + file + df);
+                if self.get_piece(from) == Some(Piece { color, kind: PieceKind::Pawn }) {
+                    let promotion = if rank == 0 || rank == 7 { Some(PieceKind::Queen) } else { None };
+                    result.push(Move { from, to, promotion });
+                }
+            }
+        }
+        for &(dr, df) in &[(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)] {
+            if rank + dr < 0 || rank + dr >= 8 ||
+               file + df < 0 || file + df >= 8 {
+                continue;
+            }
+            let from = Square(8 * (rank + dr) + file + df);
+            if self.get_piece(from) == Some(Piece { color, kind: PieceKind::Knight }) {
+                result.push(Move { from, to, promotion: None });
+            }
+        }
+
+        for &(dr, df) in &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)] {
+            let mut r = rank;
+            let mut f = file;
+            loop {
+                r += dr;
+                f += df;
+                if r < 0 || r >= 8 || f < 0 || f >= 8 {
+                    break;
+                }
+                let from = Square(r * 8 + f);
+                if let Some(p) = self.get_piece(from) {
+                    if p.color != color {
+                        break;
+                    }
+                    let cond = match p.kind {
+                        PieceKind::Pawn => false,
+                        PieceKind::Knight => false,
+                        PieceKind::Bishop => rank != r && file != f,
+                        PieceKind::Rook => rank == r || file == f,
+                        PieceKind::Queen => true,
+                        PieceKind::King => (rank - r).abs() <= 1 && (file - f).abs() <= 1,
+                    };
+                    if cond {
+                        result.push(Move { from, to, promotion: None });
+                    }
+                    break;
+                }
+            }
+        }
+
+        result
+    }
 }
