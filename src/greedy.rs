@@ -1,7 +1,7 @@
 use std::io::Write;
 use log::info;
 use rand::prelude::*;
-use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
+use crate::game::{Square, Color, Piece, Move};
 use crate::ai_interface::{Ai, Player};
 use crate::infoset::Infoset;
 
@@ -91,22 +91,13 @@ impl Player for GreedyPlayer {
         let mut payoff = vec![0f32; m * n];
 
         let mut eval_hash = std::collections::HashMap::new();
-
-        let depth = if n < 1000 {
-            3
-        } else if n < 5000 {
-            2
-        } else {
-            1
-        };
-
         for (i, &requested) in candidates.iter().enumerate() {
             for (j, s) in infoset.possible_states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
                 let e = *eval_hash.entry(s2.clone()).or_insert_with(|| {
-                    let mut e = -evaluate(&s2, depth, -3000, 3000);
+                    let mut e =  -crate::eval::quiescence(&s2, 0, -3000, 3000);
                     if let Some(sq) = s2.find_king(s2.side_to_play()) {
                         if !s2.all_attacks_to(sq, s2.side_to_play().opposite()).is_empty() {
                             e += 50;
@@ -248,71 +239,4 @@ pub fn fictitious_play(m: usize, n: usize, a: &[f32], num_steps: i32) -> Solutio
         strategy1,
         strategy2,
     }
-}
-
-fn material_value(k: PieceKind) -> i64 {
-    match k {
-        PieceKind::Pawn => 1,
-        PieceKind::Knight => 3,
-        PieceKind::Bishop => 3,
-        PieceKind::Rook => 6,
-        PieceKind::Queen => 9,
-        PieceKind::King => 20,
-    }
-}
-
-fn evaluate(s: &BoardState, max_depth: i32, mut alpha: i64, beta: i64) -> i64 {
-    assert!(alpha <= beta);
-
-    let mut static_val = 0;
-    let mut my_king = false;
-    let mut opp_king = false;
-    for i in 0..64 {
-        if let Some(p) = s.get_piece(Square(i)) {
-            let sign = if p.color == s.side_to_play() { 1 } else { - 1};
-            static_val += 100 * sign * material_value(p.kind);
-            if p.kind == PieceKind::King {
-                if p.color == s.side_to_play() {
-                    my_king = true;
-                } else {
-                    opp_king = true;
-                }
-            }
-        }
-    }
-    assert!(my_king || opp_king);
-    if !opp_king {
-        return beta;
-    }
-    if !my_king {
-        return alpha;
-    }
-
-    let all_moves = s.all_moves();
-    static_val += all_moves.len() as i64;
-    let mut s2 = s.clone();
-    s2.make_move(None);
-    static_val -= s2.all_moves().len() as i64;
-
-    if static_val >= beta {
-        return beta;
-    }
-    alpha = alpha.max(static_val);
-    if max_depth == 0 {
-        return alpha;
-    }
-
-    for m in all_moves {
-        let mut s2 = s.clone();
-        let cs = s2.make_move(Some(m));
-        if cs.is_none() {
-            continue;
-        }
-        let t = -evaluate(&s2, max_depth - 1, -beta, -alpha);
-        if t >= beta {
-            return beta;
-        }
-        alpha = alpha.max(t);
-    }
-    alpha
 }

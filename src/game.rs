@@ -26,7 +26,7 @@ impl Square {
         format!("{}{}", ('a' as i8 + x % 8) as u8 as char, x / 8 + 1)
     }
 
-    fn from_san(s: &str) -> Square {
+    pub fn from_san(s: &str) -> Square {
         let mut it = s.chars();
         let file = it.next().unwrap();
         let rank = it.next().unwrap();

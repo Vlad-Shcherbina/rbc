@@ -3,6 +3,7 @@ pub mod moves;
 pub mod infoset;
 pub mod ai_interface;
 pub mod distr;
+pub mod eval;
 pub mod greedy;
 pub mod api;
 pub mod history;
