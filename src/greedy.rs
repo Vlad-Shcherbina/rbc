@@ -1,7 +1,7 @@
 use std::io::Write;
 use log::info;
 use rand::prelude::*;
-use crate::game::{Square, Color, Piece, Move};
+use crate::game::{Square, Color, Piece, Move, BoardState};
 use crate::ai_interface::{Ai, Player};
 use crate::infoset::Infoset;
 
@@ -85,14 +85,27 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
 
+        let max_states = 5000;
+        let states: Vec<&BoardState> = if infoset.possible_states.len() <= max_states {
+            infoset.possible_states.iter().collect()
+        } else {
+            let p = max_states as f64 / infoset.possible_states.len() as f64;
+            let res: Vec<_> = infoset.possible_states.iter()
+                .filter(|_| self.rng.gen_bool(p))
+                .collect();
+            writeln!(html, "<p>sparsening to {}</p>", res.len()).unwrap();
+            info!("sparsening to {}", res.len());
+            res
+        };
+
         let candidates = infoset.fog_state.all_sensible_requested_moves();
         let m = candidates.len();
-        let n = infoset.possible_states.len();
+        let n = states.len();
         let mut payoff = vec![0f32; m * n];
 
         let mut eval_hash = std::collections::HashMap::new();
         for (i, &requested) in candidates.iter().enumerate() {
-            for (j, s) in infoset.possible_states.iter().enumerate() {
+            for (j, &s) in states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 s2.make_move(taken);
@@ -116,7 +129,7 @@ impl Player for GreedyPlayer {
         jx.sort_by(|&j1, &j2| sol.strategy2[j2].partial_cmp(&sol.strategy2[j1]).unwrap());
         jx = jx.into_iter().take(6).take_while(|&j| sol.strategy2[j] > 0.01).collect();
         for &j in &jx {
-            info!("dangerous: {} {:#?}", sol.strategy2[j], infoset.possible_states[j].render());
+            info!("dangerous: {} {:#?}", sol.strategy2[j], states[j].render());
         }
         info!("game value: {}", sol.game_value);
         let mut ix: Vec<usize> = (0..m).collect();
@@ -130,7 +143,7 @@ impl Player for GreedyPlayer {
         writeln!(html, "<tr>").unwrap();
         writeln!(html, "<td></td><td></td>").unwrap();
         for &j in &jx {
-            writeln!(html, "<td>{}</td>", infoset.possible_states[j].to_html()).unwrap();
+            writeln!(html, "<td>{}</td>", states[j].to_html()).unwrap();
         }
         writeln!(html, "</tr>").unwrap();
         writeln!(html, "<tr>").unwrap();
