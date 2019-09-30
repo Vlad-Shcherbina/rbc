@@ -166,6 +166,80 @@ pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> 
     alpha
 }
 
+pub fn quiescence_material_only(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> i32 {
+    assert!(alpha <= beta);
+    crate::stats::inc("quiescence m/o", Some(depth), 1);
+    let color = board.side_to_play();
+    let king = board.find_king(color);
+    if king.is_none() {
+        return alpha;
+    }
+    let king = king.unwrap();
+
+    let opp_king = board.find_king(color.opposite());
+    if opp_king.is_none() {
+        return beta;
+    }
+    if !board.all_attacks_to(opp_king.unwrap(), color).is_empty() {
+        return beta;
+    }
+
+    let all_moves = board.all_moves();
+    if board.all_attacks_to(king, color.opposite()).is_empty() {
+        let mut static_val = 0;
+        for sq in (0..64).map(Square) {
+            if let Some(p) = board.get_piece(sq) {
+                let v = material_value(p.kind);
+                if p.color == color {
+                    static_val += v;
+                } else {
+                    static_val -= v;
+                }
+            }
+        }
+        if static_val >= beta {
+            return beta;
+        }
+        alpha = alpha.max(static_val);
+
+        let mut ranked_moves: Vec<(Move, i32)> = Vec::with_capacity(all_moves.len());
+        for m in all_moves {
+            if board.get_piece(m.to).is_none() {
+                continue;
+            }
+            let mut b2 = board.clone();
+            let cap = b2.make_move(Some(m));
+            let cap = board.get_piece(cap.unwrap()).unwrap();
+            let rank = material_value(cap.kind) - see(&b2, m.to, color.opposite());
+            if rank >= 0 {
+                ranked_moves.push((m, rank));
+            }
+        }
+        ranked_moves.sort_by_key(|&(_, rank)| -rank);
+        for (m, _) in ranked_moves {
+            let mut b2 = board.clone();
+            b2.make_move(Some(m));
+            let t = -quiescence_material_only(&b2, depth + 1, -beta, -alpha);
+            if t >= beta {
+                return beta;
+            }
+            alpha = alpha.max(t);
+        }
+    } else {
+        crate::stats::inc("in check m/o", Some(depth), 1);
+        for m in all_moves {
+            let mut b2 = board.clone();
+            b2.make_move(Some(m));
+            let t = -quiescence_material_only(&b2, depth + 1, -beta, -alpha);
+            if t >= beta {
+                return beta;
+            }
+            alpha = alpha.max(t);
+        }
+    }
+    alpha
+}
+
 #[cfg(test)]
 #[test]
 fn test_quiescence() {
@@ -173,5 +247,7 @@ fn test_quiescence() {
         "rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 0 0").unwrap().into();
     dbg!(board.render());
     let q = quiescence(&board, 0, -3000, 3000);
+    dbg!(q);
+    let q = quiescence_material_only(&board, 0, -3000, 3000);
     dbg!(q);
 }

@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::collections::HashMap;
 use log::info;
 use rand::prelude::*;
 use crate::game::{Square, Color, Piece, Move, BoardState};
@@ -28,6 +29,79 @@ struct GreedyPlayer {
     experiment: bool,
 }
 
+fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) -> i32 {
+    assert!(alpha < beta);
+    for state in states {
+        let taken_move = state.requested_to_taken(req_move);
+        let mut s2 = state.clone();
+        s2.make_move(taken_move);
+        let t = -crate::eval::quiescence_material_only(&s2, 0, -beta, -alpha);
+        if t <= alpha {
+            return alpha;
+        }
+        beta = beta.min(t);
+    }
+    beta
+}
+
+fn sr_value(moves: &[Move], states: &[BoardState], mut alpha: i32, beta: i32) -> i32 {
+    assert!(alpha < beta);
+    for &m in moves {
+        let t = move_value(m, states, alpha, beta);
+        if t >= beta {
+            return beta;
+        }
+        alpha = alpha.max(t)
+    }
+    alpha
+}
+
+fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> HashMap<Square, i32> {
+    let mut result = HashMap::new();
+    let max_possible_states = 4000;
+    let mut possible_states = Vec::new();
+    if infoset.possible_states.len() <= max_possible_states {
+        possible_states = infoset.possible_states.clone();
+    } else {
+        let p = max_possible_states as f64 / infoset.possible_states.len() as f64;
+        for s in &infoset.possible_states {
+            if rng.gen_bool(p) {
+                possible_states.push(s.clone());
+            }
+        }
+        writeln!(html, "<p>sparsening to {}</p>", possible_states.len()).unwrap();
+        info!("sparsening to {}", possible_states.len());
+    }
+
+    let moves = infoset.fog_state.all_sensible_requested_moves();
+    write!(html, "<table>").unwrap();
+    for rank in (1..7).rev() {
+        write!(html, "<tr>").unwrap();
+        for file in 1..7 {
+            let sq = Square(rank * 8 + file);
+            let mut state_by_sr = fnv::FnvHashMap::<_, Vec<BoardState>>::default();
+            for s in &possible_states {
+                state_by_sr.entry(s.sense(sq)).or_default().push(s.clone());
+            }
+            let alpha = -3000;
+            let mut beta = 3000;
+            for (_sr, states) in state_by_sr.iter() {
+                let t = sr_value(&moves, states, alpha, beta);
+                if t <= alpha {
+                    beta = alpha;
+                    break;
+                }
+                beta = beta.min(t);
+            }
+            write!(html, "<td class=numcol>{}</td>", beta).unwrap();
+            result.insert(sq, beta);
+        }
+        write!(html, "</tr>").unwrap();
+    }
+    writeln!(html, "</table>").unwrap();
+    result
+}
+
 impl Player for GreedyPlayer {
     fn handle_opponent_move(&mut self,
         capture_square: Option<Square>,
@@ -48,17 +122,25 @@ impl Player for GreedyPlayer {
         info!("{:#?}", infoset.render());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
         let timer = std::time::Instant::now();
+
+        let iv = info_value(infoset, html, &mut self.rng);
+
         let mut hz = Vec::new();
+        write!(html, "<table>").unwrap();
         for rank in (1..7).rev() {
+            write!(html, "<tr>").unwrap();
             let mut line = String::new();
             for file in 1..7 {
                 let sq = Square(rank * 8 + file);
                 let e = infoset.sense_entropy(sq);
                 line.push_str(&format!("{:>7.2}", e));
-                hz.push((sq, e));
+                write!(html, "<td class=numcol>{:.2}</td>", e).unwrap();
+                hz.push((sq, e + iv[&sq] as f64 * 2e-3));
             }
-            info!("entropy: {}", line)
+            info!("entropy: {}", line);
+            write!(html, "</tr>").unwrap();
         }
+        writeln!(html, "</table>").unwrap();
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         let m: f64 = hz.iter()
             .map(|&(_, e)| e)
@@ -103,7 +185,7 @@ impl Player for GreedyPlayer {
         let n = states.len();
         let mut payoff = vec![0f32; m * n];
 
-        let mut eval_hash = std::collections::HashMap::new();
+        let mut eval_hash = HashMap::new();
         for (i, &requested) in candidates.iter().enumerate() {
             for (j, &s) in states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
@@ -165,12 +247,13 @@ impl Player for GreedyPlayer {
             writeln!(html, "</tr>").unwrap();
         }
         writeln!(html, "</table>").unwrap();
+        writeln!(html, "<p>Game value: {:.1}</p>", sol.game_value).unwrap();
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         candidates.into_iter()
             .map(Option::Some)
             .zip(sol.strategy1)
-            .filter(|&(_, p)| p >= 1e-3)
+            .filter(|&(_, p)| p >= 2e-2)
             .collect()
     }
 
