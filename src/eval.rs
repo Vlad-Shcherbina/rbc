@@ -1,4 +1,4 @@
-use crate::game::{Color, PieceKind, Square, BoardState};
+use crate::game::{Color, PieceKind, Square, Move, BoardState};
 
 fn material_value(k: PieceKind) -> i32 {
     match k {
@@ -77,6 +77,31 @@ fn mobility_value(kind: PieceKind) -> i32 {
     }
 }
 
+// https://www.chessprogramming.org/Quiescence_Search#Standing_Pat
+#[inline(never)]
+fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
+    let mut static_val = 0;
+    for &m in all_moves {
+        static_val += mobility_value(board.get_piece(m.from).unwrap().kind);
+    }
+    let mut b2 = board.clone();
+    b2.make_move(None);
+    for m in b2.all_moves() {
+        static_val -= mobility_value(board.get_piece(m.from).unwrap().kind);
+    }
+    for sq in (0..64).map(Square) {
+        if let Some(p) = board.get_piece(sq) {
+            let v = material_value(p.kind);
+            if p.color == color {
+                static_val += v;
+            } else {
+                static_val -= v;
+            }
+        }
+    }
+    static_val
+}
+
 pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> i32 {
     assert!(alpha <= beta);
     let color = board.side_to_play();
@@ -96,25 +121,7 @@ pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> 
 
     let all_moves = board.all_moves();
     let in_check = if board.all_attacks_to(king, color.opposite()).is_empty() {
-        let mut static_val = 0;
-        for &m in &all_moves {
-            static_val += mobility_value(board.get_piece(m.from).unwrap().kind);
-        }
-        let mut b2 = board.clone();
-        b2.make_move(None);
-        for m in b2.all_moves() {
-            static_val -= mobility_value(board.get_piece(m.from).unwrap().kind);
-        }
-        for sq in (0..64).map(Square) {
-            if let Some(p) = board.get_piece(sq) {
-                let v = material_value(p.kind);
-                if p.color == color {
-                    static_val += v;
-                } else {
-                    static_val -= v;
-                }
-            }
-        }
+        let static_val = standing_pat(board, color, &all_moves);
         if static_val >= beta {
             return beta;
         }
