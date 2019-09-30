@@ -121,34 +121,47 @@ pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> 
     }
 
     let all_moves = board.all_moves();
-    let in_check = if board.all_attacks_to(king, color.opposite()).is_empty() {
+    if board.all_attacks_to(king, color.opposite()).is_empty() {
         let static_val = standing_pat(board, color, &all_moves);
         if static_val >= beta {
             return beta;
         }
         alpha = alpha.max(static_val);
-        false
-    } else {
-        true
-    };
-    for m in all_moves {
-        if !in_check && board.get_piece(m.to).is_none() {
-            continue;
-        }
-        let mut b2 = board.clone();
-        let cap = b2.make_move(Some(m));
-        assert!(in_check || cap.is_some());
-        if !in_check {
-            let cap = board.get_piece(cap.unwrap()).unwrap();
-            if material_value(cap.kind) < see(&b2, m.to, color.opposite()) {
+
+        let mut ranked_moves: Vec<(Move, i32)> = Vec::with_capacity(all_moves.len());
+        for m in all_moves {
+            if board.get_piece(m.to).is_none() {
                 continue;
             }
+            let mut b2 = board.clone();
+            let cap = b2.make_move(Some(m));
+            let cap = board.get_piece(cap.unwrap()).unwrap();
+            let rank = material_value(cap.kind) - see(&b2, m.to, color.opposite());
+            if rank >= 0 {
+                ranked_moves.push((m, rank));
+            }
         }
-        let t = -quiescence(&b2, depth + 1, -beta, -alpha);
-        if t >= beta {
-            return beta;
+        ranked_moves.sort_by_key(|&(_, rank)| -rank);
+        for (m, _) in ranked_moves {
+            let mut b2 = board.clone();
+            b2.make_move(Some(m));
+            let t = -quiescence(&b2, depth + 1, -beta, -alpha);
+            if t >= beta {
+                return beta;
+            }
+            alpha = alpha.max(t);
         }
-        alpha = alpha.max(t);
+    } else {
+        crate::stats::inc("in check", Some(depth), 1);
+        for m in all_moves {
+            let mut b2 = board.clone();
+            b2.make_move(Some(m));
+            let t = -quiescence(&b2, depth + 1, -beta, -alpha);
+            if t >= beta {
+                return beta;
+            }
+            alpha = alpha.max(t);
+        }
     }
     alpha
 }
