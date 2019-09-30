@@ -104,6 +104,7 @@ fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
 
 pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> i32 {
     assert!(alpha <= beta);
+    crate::stats::inc("quiescence", Some(depth), 1);
     let color = board.side_to_play();
     let king = board.find_king(color);
     if king.is_none() {

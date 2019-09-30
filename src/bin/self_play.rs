@@ -79,7 +79,6 @@ fn main() {
     // let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
     // log::set_max_level(log::LevelFilter::Info);
 
-    let timer = std::time::Instant::now();
 
     let ai1 = rbc::greedy::GreedyAi { experiment: true };
     let ai2 = rbc::greedy::GreedyAi { experiment: false };
@@ -87,19 +86,26 @@ fn main() {
     let mut rng = StdRng::seed_from_u64(424242);
     let mut html = std::io::sink();
 
-    /*let mut game = GameState::new(&ai1, &ai2, 424242);
-    while !game.is_over() {
-        dbg!(game.move_number);
-        let sense_distr = game.phase1(&mut html);
-        let sense = *distr::draw(&sense_distr, &mut rng);
-        let requested_distr = game.phase2(sense, &mut html);
-        let requested = *distr::draw(&requested_distr, &mut rng);
-        game.phase3(requested, &mut html);
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() == 2 && args[1] == "bench" {
+        let timer = std::time::Instant::now();
+        let mut game = GameState::new(&ai1, &ai2, 424242);
+        while !game.is_over() {
+            dbg!(game.move_number);
+            let sense_distr = game.phase1(&mut html);
+            let sense = *distr::draw(&sense_distr, &mut rng);
+            let requested_distr = game.phase2(sense, &mut html);
+            let requested = *distr::draw(&requested_distr, &mut rng);
+            game.phase3(requested, &mut html);
+        }
+        println!("{:?} won", game.board.winner().unwrap());
+        println!("{:#?}", game.board.render());
+        println!("white summary:\n{}", game.player_white.get_summary());
+        println!("black summary:\n{}", game.player_black.get_summary());
+        println!("{}", rbc::stats::render());
+        println!("it took {:.3}s", timer.elapsed().as_secs_f64());
+        return;
     }
-    println!("{:?} won", game.board.winner().unwrap());
-    println!("{:#?}", game.board.render());
-    println!("white summary:\n{}", game.player_white.get_summary());
-    println!("black summary:\n{}", game.player_black.get_summary());*/
 
     use std::collections::HashMap;
     let mut outcome_cnt: HashMap<(Color, Color), i32> = HashMap::new();
@@ -146,6 +152,4 @@ fn main() {
         *outcome_cnt.entry(outcome).or_default() += 1;
         println!("{:?}", outcome_cnt);
     }
-
-    println!("it took {:.3}s", timer.elapsed().as_secs_f64());
 }

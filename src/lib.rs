@@ -10,3 +10,4 @@ pub mod history;
 pub mod history_db;
 pub mod logger;
 pub mod html;
+pub mod stats;
