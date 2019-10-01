@@ -124,6 +124,8 @@ impl Player for GreedyPlayer {
         let timer = std::time::Instant::now();
 
         let iv = info_value(infoset, html, &mut self.rng);
+        let iv_weight = (2.0 - infoset.possible_states.len() as f64 / 50_000.0).max(0.0).min(1.0) * 2e-3;
+        writeln!(html, "<p>weight: {}</p>", iv_weight).unwrap();
 
         let mut hz = Vec::new();
         write!(html, "<table>").unwrap();
@@ -135,7 +137,7 @@ impl Player for GreedyPlayer {
                 let e = infoset.sense_entropy(sq);
                 line.push_str(&format!("{:>7.2}", e));
                 write!(html, "<td class=numcol>{:.2}</td>", e).unwrap();
-                hz.push((sq, e + iv[&sq] as f64 * 2e-3));
+                hz.push((sq, e + iv[&sq] as f64 * iv_weight));
             }
             info!("entropy: {}", line);
             write!(html, "</tr>").unwrap();
