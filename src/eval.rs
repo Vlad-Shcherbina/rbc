@@ -168,7 +168,9 @@ pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> 
 
 pub fn quiescence_material_only(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> i32 {
     assert!(alpha <= beta);
-    crate::stats::inc("quiescence m/o", Some(depth), 1);
+    if depth == 0 {
+        crate::stats::inc("quiescence m/o", Some(depth), 1);
+    }
     let color = board.side_to_play();
     let king = board.find_king(color);
     if king.is_none() {
@@ -226,7 +228,9 @@ pub fn quiescence_material_only(board: &BoardState, depth: i32, mut alpha: i32, 
             alpha = alpha.max(t);
         }
     } else {
-        crate::stats::inc("in check m/o", Some(depth), 1);
+        if depth == 0 {
+            crate::stats::inc("in check m/o", Some(depth), 1);
+        }
         for m in all_moves {
             let mut b2 = board.clone();
             b2.make_move(Some(m));
