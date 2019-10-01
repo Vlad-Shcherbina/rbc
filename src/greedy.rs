@@ -83,8 +83,8 @@ fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> Hash
             for s in &possible_states {
                 state_by_sr.entry(s.sense(sq)).or_default().push(s.clone());
             }
-            let alpha = -3000;
-            let mut beta = 3000;
+            let alpha = -10000;
+            let mut beta = 10000;
             for (_sr, states) in state_by_sr.iter() {
                 let t = sr_value(&moves, states, alpha, beta);
                 if t <= alpha {
@@ -190,12 +190,14 @@ impl Player for GreedyPlayer {
             for (j, &s) in states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
-                s2.make_move(taken);
+                let cap = s2.make_move(taken);
                 let e = *eval_hash.entry(s2.clone()).or_insert_with(|| {
-                    let mut e =  -crate::eval::quiescence(&s2, 0, -3000, 3000);
-                    if let Some(sq) = s2.find_king(s2.side_to_play()) {
-                        if !s2.all_attacks_to(sq, s2.side_to_play().opposite()).is_empty() {
-                            e += 50;
+                    let mut e =  -crate::eval::quiescence(&s2, 0, -10000, 10000);
+                    if cap.is_none() && e.abs() < 9950 {
+                        if let Some(sq) = s2.find_king(s2.side_to_play()) {
+                            if !s2.all_attacks_to(sq, s2.side_to_play().opposite()).is_empty() {
+                                e += 30;
+                            }
                         }
                     }
                     e

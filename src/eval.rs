@@ -103,21 +103,21 @@ fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
 }
 
 pub fn quiescence(board: &BoardState, depth: i32, mut alpha: i32, beta: i32) -> i32 {
-    assert!(alpha <= beta);
+    assert!(alpha < beta);
     crate::stats::inc("quiescence", Some(depth), 1);
     let color = board.side_to_play();
     let king = board.find_king(color);
     if king.is_none() {
-        return alpha;
+        return (-10000 + depth).max(alpha).min(beta);
     }
     let king = king.unwrap();
 
     let opp_king = board.find_king(color.opposite());
     if opp_king.is_none() {
-        return beta;
+        return (10000 - depth).max(alpha).min(beta);
     }
     if !board.all_attacks_to(opp_king.unwrap(), color).is_empty() {
-        return beta;
+        return (10000 - 1 - depth).max(alpha).min(beta);
     }
 
     let all_moves = board.all_moves();
@@ -246,8 +246,8 @@ fn test_quiescence() {
     let board: BoardState = fen::BoardState::from_fen(
         "rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let q = quiescence(&board, 0, -3000, 3000);
+    let q = quiescence(&board, 0, -10000, 10000);
     dbg!(q);
-    let q = quiescence_material_only(&board, 0, -3000, 3000);
+    let q = quiescence_material_only(&board, 0, -10000, 10000);
     dbg!(q);
 }
