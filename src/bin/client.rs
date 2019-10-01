@@ -86,7 +86,6 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             let requested_distr = player.choose_move(&infoset, &mut html);
             let requested = distr::draw(&requested_distr, &mut rng);
             writeln!(html, "<p>requested: {:?}</p>", requested_distr).unwrap();
-            writeln!(html, "<p>requested: {:?}</p>", requested).unwrap();
 
             let req_str = requested.map_or("a1a1".to_owned(), |r| r.to_uci());
             let mr = match api::make_move(game_id, req_str) {

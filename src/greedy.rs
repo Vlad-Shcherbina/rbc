@@ -264,7 +264,7 @@ impl Player for GreedyPlayer {
     fn handle_move(&mut self,
         requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
         infoset: &Infoset,
-        _html: &mut dyn Write,
+        html: &mut dyn Write,
     ) {
         assert_eq!(self.color.opposite(), infoset.fog_state.side_to_play());
         info!("requested move: {:?}", requested);
@@ -272,6 +272,11 @@ impl Player for GreedyPlayer {
         info!("capture square: {:?}", capture_square);
         info!("{} possible states after my move", infoset.possible_states.len());
         info!("{:#?}", infoset.fog_state.render());
+        writeln!(html, "<p>requested: {:?}</p>", requested).unwrap();
+        writeln!(html, "<p>taken: {:?}.</p>", taken).unwrap();
+        if let Some(cs) = capture_square {
+            writeln!(html, "<p>captured <b>{:?}</b></p>", cs).unwrap();
+        }
         writeln!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
     }
 
