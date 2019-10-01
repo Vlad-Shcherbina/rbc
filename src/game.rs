@@ -365,10 +365,33 @@ impl BoardState {
         result
     }
 
-    pub fn find_king(&self, color: Color) -> Option<Square> {
+    #[allow(dead_code)]
+    pub fn find_king_naive(&self, color: Color) -> Option<Square> {
         (0..64).map(Square)
         .find(|&s| self.get_piece(s) ==
                    Some(Piece { color, kind: PieceKind::King }))
+    }
+
+    #[inline(never)]
+    pub fn find_king(&self, color: Color) -> Option<Square> {
+        let x = Piece::to_int(Some(Piece { color, kind: PieceKind::King }));
+        let mask: u32 = 0x11111111 * x;
+        for (rank, &row) in self.pieces.iter().enumerate() {
+            let mut t = row ^ mask;
+            t |= t >> 1;
+            t |= t >> 2;
+            t = 0x11111111 & !t;
+            if t == 0 {
+                continue;
+            }
+            assert!(t & (t - 1) == 0);
+            let file = ((t * 0x01234567) >> 28) & 7;
+            let result = Some(Square(rank as i8 * 8 + file as i8));
+            // assert_eq!(result, self.find_king_naive(color));
+            return result;
+        }
+        // assert!(self.find_king_naive(color).is_none());
+        None
     }
 
     pub fn winner(&self) -> Option<Color> {
