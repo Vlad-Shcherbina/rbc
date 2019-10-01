@@ -58,7 +58,7 @@ fn sr_value(moves: &[Move], states: &[BoardState], mut alpha: i32, beta: i32) ->
 
 fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> HashMap<Square, i32> {
     let mut result = HashMap::new();
-    let max_possible_states = 4000;
+    let max_possible_states = 2000;
     let mut possible_states = Vec::new();
     if infoset.possible_states.len() <= max_possible_states {
         possible_states = infoset.possible_states.clone();
@@ -167,7 +167,7 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
 
-        let max_states = 5000;
+        let max_states = 2000;
         let states: Vec<&BoardState> = if infoset.possible_states.len() <= max_states {
             infoset.possible_states.iter().collect()
         } else {
