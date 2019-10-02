@@ -35,7 +35,15 @@ fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) 
         let taken_move = state.requested_to_taken(req_move);
         let mut s2 = state.clone();
         s2.make_move(taken_move);
-        let t = -crate::eval::quiescence_material_only(&s2, 0, -beta, -alpha);
+
+        let mut ctx = crate::eval::Ctx {
+            ply: 0,
+            pvs: Vec::new(),
+            print: false,
+            expensive_eval: false,
+        };
+        let t = -crate::eval::search(&s2, -beta, -alpha, &mut ctx);
+
         if t <= alpha {
             return alpha;
         }
@@ -194,7 +202,14 @@ impl Player for GreedyPlayer {
                 let mut s2 = s.clone();
                 let cap = s2.make_move(taken);
                 let e = *eval_hash.entry(s2.clone()).or_insert_with(|| {
-                    let mut e =  -crate::eval::quiescence(&s2, 0, -10000, 10000);
+                    let mut ctx = crate::eval::Ctx {
+                        ply: 0,
+                        pvs: Vec::new(),
+                        print: false,
+                        expensive_eval: true,
+                    };
+                    let mut e = -crate::eval::search(&s2, -10000, 10000, &mut ctx);
+
                     if cap.is_none() && e.abs() < 9950 {
                         if let Some(sq) = s2.find_king(s2.side_to_play()) {
                             if !s2.all_attacks_to(sq, s2.side_to_play().opposite()).is_empty() {
