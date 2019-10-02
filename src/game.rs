@@ -385,7 +385,7 @@ impl BoardState {
                 continue;
             }
             assert!(t & (t - 1) == 0);
-            let file = ((t * 0x01234567) >> 28) & 7;
+            let file = (t.wrapping_mul(0x01234567) >> 28) & 7;
             let result = Some(Square(rank as i8 * 8 + file as i8));
             // assert_eq!(result, self.find_king_naive(color));
             return result;
