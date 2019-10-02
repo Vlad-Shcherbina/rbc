@@ -195,35 +195,44 @@ impl Player for GreedyPlayer {
         let n = states.len();
         let mut payoff = vec![0f32; m * n];
 
-        let mut eval_hash = HashMap::new();
+        struct CacheEntry {
+            value: f32,
+            pv: Vec<Move>,
+            bonus: f32,
+        }
+        let mut eval_cache = HashMap::<BoardState, CacheEntry>::new();
         for (i, &requested) in candidates.iter().enumerate() {
             for (j, &s) in states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 let cap = s2.make_move(taken);
-                let e = *eval_hash.entry(s2.clone()).or_insert_with(|| {
+                let e = eval_cache.entry(s2.clone()).or_insert_with(|| {
                     let mut ctx = crate::eval::Ctx {
                         ply: 0,
                         pvs: Vec::new(),
                         print: false,
                         expensive_eval: true,
                     };
-                    let mut e = -crate::eval::search(&s2, -10000, 10000, &mut ctx);
-
-                    if cap.is_none() && e.abs() < 9950 {
+                    let mut e = CacheEntry {
+                        value: -crate::eval::search(&s2, -10000, 10000, &mut ctx) as f32,
+                        pv: ctx.pvs[0].clone(),
+                        bonus: 0.0,
+                    };
+                    if cap.is_none() && e.value.abs() < 9950.0 {
                         if let Some(sq) = s2.find_king(s2.side_to_play()) {
                             if !s2.all_attacks_to(sq, s2.side_to_play().opposite()).is_empty() {
-                                e += 30;
+                                e.bonus = 30.0;
                             }
                         }
                     }
                     e
                 });
-                payoff[i * n + j] = e as f32;
+                payoff[i * n + j] = e.value + e.bonus;
             }
             info!("{} rows left", m - 1 - i);
         }
-        info!("eval_hash size: {}", eval_hash.len());
+        writeln!(html, "<p>{} matrix cells, {} unique</p>", n * m, eval_cache.len()).unwrap();
+        info!("{} matrix cells, {} unique", n * m, eval_cache.len());
         info!("solving...");
         let sol = fictitious_play(m, n, &payoff, 100_000);
         let mut jx: Vec<usize> = (0..n).collect();
@@ -261,7 +270,17 @@ impl Player for GreedyPlayer {
             ).unwrap();
             writeln!(html, "<td class=numcol>{:.3}</td>", sol.strategy1[i]).unwrap();
             for &j in &jx {
-                writeln!(html, "<td class=numcol>{:.1}</td>", payoff[i * n + j]).unwrap();
+                let mut s2 = states[j].clone();
+                let taken = s2.requested_to_taken(candidates[i]);
+                s2.make_move(taken);
+                let e = &eval_cache[&s2];
+                let moves = Some(taken).into_iter().chain(e.pv.iter().cloned().map(Option::Some));
+                let moves = crate::html::moves_to_html(&states[j], moves);
+                write!(html, "<td class=numcol><div><b>{:.0}", e.value).unwrap();
+                if e.bonus != 0.0 {
+                    write!(html, "{:+.0}", e.bonus).unwrap();
+                }
+                write!(html, "</b></div>{}</td></td>", moves).unwrap();
             }
             writeln!(html, "</tr>").unwrap();
         }

@@ -65,3 +65,8 @@ table.board-large td div.piece.cnt4 {
 tr:hover {
     background-color: #f5f5f5;
 }
+
+.negspace {
+    margin-left: -1px;
+    margin-right: -1px;
+}

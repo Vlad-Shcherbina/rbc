@@ -1,4 +1,4 @@
-use crate::game::{Square, Piece, BoardState};
+use crate::game::{Square, Piece, Move, BoardState};
 use crate::game::Color::*;
 use crate::game::PieceKind::*;
 use crate::infoset::Infoset;
@@ -114,4 +114,45 @@ impl Infoset {
         s.push_str(&format!("{} possibilities", self.possible_states.len()));
         s
     }
+}
+
+pub fn moves_to_html(b: &BoardState, moves: impl Iterator<Item=Option<Move>>) -> String {
+    let mut result = Vec::<String>::new();
+    let mut b = b.clone();
+    for m in moves {
+        let mut b2 = b.clone();
+        let cap = b2.make_move(m);
+        if let Some(m) = m {
+            let mut s = format!(
+                r#"<span style="white-space:nowrap">{}<span class=negspace></span>{:?}"#,
+                b.get_piece(m.from).unwrap().to_emoji(), m.from);
+            if let Some(cap) = cap {
+                s.push_str("&thinsp;x");
+                s.push(b.get_piece(cap).unwrap().to_emoji());
+                s.push_str("<span class=negspace></span>");
+                s.push_str(&m.to.to_san());
+            } else {
+                s.push_str(&m.to.to_san());
+            }
+            if let Some(p) = m.promotion {
+                let p = Piece {
+                    color: b.side_to_play(),
+                    kind: p,
+                };
+                s.push_str("<span class=negspace></span>");
+                s.push(p.to_emoji());
+            }
+            if let Some(king) = b2.find_king(b2.side_to_play()) {
+                if !b2.all_attacks_to(king, b.side_to_play()).is_empty() {
+                    s.push('+');
+                }
+            }
+            s.push_str("</span>");
+            result.push(s);
+        } else {
+            result.push("pass".to_string());
+        }
+        b = b2;
+    }
+    result.join("; ")
 }
