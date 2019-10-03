@@ -89,16 +89,7 @@ fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
     for m in b2.all_moves() {
         static_val -= mobility_value(board.get_piece(m.from).unwrap().kind);
     }
-    for sq in (0..64).map(Square) {
-        if let Some(p) = board.get_piece(sq) {
-            let v = material_value(p.kind);
-            if p.color == color {
-                static_val += v;
-            } else {
-                static_val -= v;
-            }
-        }
-    }
+    static_val += standing_pat_material_only(board, color);
     static_val
 }
 
