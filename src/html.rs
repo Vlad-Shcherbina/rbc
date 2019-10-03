@@ -6,7 +6,18 @@ use crate::infoset::Infoset;
 pub const PREAMBLE: &str = r#"
 <meta charset="utf-8">
 <link href="../static/style.css" rel="stylesheet">
+<script>
+let summary = "";
+</script>
+<div id="summary"></div>
 "#;
+
+macro_rules! append_to_summary {
+    ($w:expr, $($arg:tt)*) => ({
+        write!($w, r#"<script>document.getElementById("summary").innerHTML = (summary += {})</script>"#,
+            serde_json::to_string(&format!($($arg)*)).unwrap()).unwrap();
+    })
+}
 
 impl Piece {
     pub fn to_emoji(self) -> char {

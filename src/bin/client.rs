@@ -34,6 +34,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
 
     let mut infoset = Infoset::new(color);
 
+    player.begin(&mut html);
     loop {
         let gs = api::game_status(game_id).expect("TODO");
         if gs.is_over {

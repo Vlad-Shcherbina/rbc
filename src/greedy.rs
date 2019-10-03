@@ -18,6 +18,10 @@ impl Ai for GreedyAi {
             color,
             summary: Vec::new(),
             experiment: self.experiment,
+            move_number: match color {
+                Color::White => 0,
+                Color::Black => 1,
+            },
         })
     }
 }
@@ -27,6 +31,7 @@ struct GreedyPlayer {
     color: Color,
     summary: Vec<u8>,
     experiment: bool,
+    move_number: i32,
 }
 
 fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) -> i32 {
@@ -111,6 +116,10 @@ fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> Hash
 }
 
 impl Player for GreedyPlayer {
+    fn begin(&mut self, html: &mut dyn Write) {
+        append_to_summary!(html, "<table>");
+    }
+
     fn handle_opponent_move(&mut self,
         capture_square: Option<Square>,
         infoset: &Infoset,
@@ -125,8 +134,15 @@ impl Player for GreedyPlayer {
     }
 
     fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)> {
+        writeln!(html, r#"<h3 id="move{}">Move {}</h3>"#, self.move_number, self.move_number).unwrap();
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
+        append_to_summary!(html, r##"<tr>
+            <td class=numcol><a href="#move{}">#{}</a></td>
+            <td class=numcol>{}</td>"##,
+            self.move_number, self.move_number,
+            infoset.possible_states.len());
+
         info!("{:#?}", infoset.render());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
         let timer = std::time::Instant::now();
@@ -152,6 +168,7 @@ impl Player for GreedyPlayer {
         }
         writeln!(html, "</table>").unwrap();
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
+        append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
         let m: f64 = hz.iter()
             .map(|&(_, e)| e)
             .max_by(|e1, e2| e1.partial_cmp(e2).unwrap())
@@ -170,6 +187,7 @@ impl Player for GreedyPlayer {
         info!("sense {:?} -> {:?}", sense, sense_result);
         info!("{:#?}", infoset.render());
         write!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
+        append_to_summary!(html, "<td class=numcol>{}</td>", infoset.possible_states.len());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
     }
 
@@ -300,6 +318,7 @@ impl Player for GreedyPlayer {
         writeln!(html, "<p>Game value: {:.1}</p>", sol.game_value).unwrap();
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
+        append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
         candidates.into_iter()
             .map(Option::Some)
             .zip(sol.strategy1)
@@ -324,6 +343,8 @@ impl Player for GreedyPlayer {
             writeln!(html, "<p>captured <b>{:?}</b></p>", cs).unwrap();
         }
         writeln!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
+        append_to_summary!(html, "<td class=numcol>{}</td></tr>", infoset.possible_states.len());
+        self.move_number += 2;
     }
 
     fn get_summary(&self) -> String {

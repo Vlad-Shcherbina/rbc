@@ -9,6 +9,7 @@ pub trait Ai {
 }
 
 pub trait Player {
+    fn begin(&mut self, html: &mut dyn Write);
     fn handle_opponent_move(&mut self,
         capture_square: Option<Square>,
         infoset: &Infoset,
@@ -52,6 +53,8 @@ struct RandomPlayer {
 }
 
 impl Player for RandomPlayer {
+    fn begin(&mut self, _html: &mut dyn Write) {}
+
     fn handle_opponent_move(&mut self,
         capture_square: Option<Square>,
         _infoset: &Infoset,
