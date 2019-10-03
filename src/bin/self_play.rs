@@ -67,7 +67,7 @@ impl GameState {
         }
         let board = &self.board;
         let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
-        self.last_capture_square = self.board.make_move(taken_move);
+        self.last_capture_square = self.board.make_move(taken_move, &mut rbc::obs::NullObs);
         infoset.my_move(requested_move, taken_move, self.last_capture_square);
         player.handle_move(requested_move, taken_move, self.last_capture_square, infoset, html);
 
@@ -78,7 +78,6 @@ impl GameState {
 fn main() {
     // let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
     // log::set_max_level(log::LevelFilter::Info);
-
 
     let ai1 = rbc::greedy::GreedyAi { experiment: true };
     let ai2 = rbc::greedy::GreedyAi { experiment: false };

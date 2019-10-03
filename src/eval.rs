@@ -23,7 +23,7 @@ pub fn see(board: &BoardState, sq: Square, color: Color) -> i32 {
         });
     if let Some(am) = am {
         let mut board2 = board.clone();
-        board2.make_move(Some(am));
+        board2.make_move(Some(am), &mut crate::obs::NullObs);
         0.max(material_value(cap.kind) - see(&board2, sq, color.opposite()))
     } else {
         0
@@ -85,7 +85,7 @@ fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
         static_val += mobility_value(board.get_piece(m.from).unwrap().kind);
     }
     let mut b2 = board.clone();
-    b2.make_move(None);
+    b2.make_move(None, &mut crate::obs::NullObs);
     for m in b2.all_moves() {
         static_val -= mobility_value(board.get_piece(m.from).unwrap().kind);
     }
@@ -174,7 +174,7 @@ pub fn search(depth: i32, board: &BoardState, mut alpha: i32, beta: i32, ctx: &m
                 continue;
             }
             let mut b2 = board.clone();
-            let cap = b2.make_move(Some(m));
+            let cap = b2.make_move(Some(m), &mut crate::obs::NullObs);
             let cap = board.get_piece(cap.unwrap()).unwrap();
             let rank = material_value(cap.kind) - see(&b2, m.to, color.opposite());
             if rank >= 0 {
@@ -186,7 +186,7 @@ pub fn search(depth: i32, board: &BoardState, mut alpha: i32, beta: i32, ctx: &m
     }
     for m in all_moves {
         let mut b2 = board.clone();
-        b2.make_move(Some(m));
+        b2.make_move(Some(m), &mut crate::obs::NullObs);
         ctx.ply += 1;
         let t = -search((depth - 1).max(0), &b2, -beta, -alpha, ctx);
         ctx.ply -= 1;

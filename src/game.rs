@@ -253,7 +253,7 @@ impl From<fen::BoardState> for BoardState {
             en_passant_square: b.en_passant_square.map(|s| Square(s as i8)),
         };
         for (i, p) in b.pieces.into_iter().enumerate() {
-            result.replace_piece(Square(i as i8), p.map(Piece::from));
+            result.replace_piece(Square(i as i8), p.map(Piece::from), &mut crate::obs::NullObs);
         }
         result
     }
@@ -278,12 +278,18 @@ impl BoardState {
         Piece::from_int(k)
     }
 
-    pub fn replace_piece(&mut self, i: Square, new_piece: Option<Piece>) -> Option<Piece> {
-        let i = i.0 as usize;
+    pub fn replace_piece(
+        &mut self,
+        sq: Square, new_piece: Option<Piece>,
+        obs: &mut impl crate::obs::Obs,
+    ) -> Option<Piece> {
+        let i = sq.0 as usize;
         let old = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
         self.pieces[i / 8] &= !(15 << (i % 8 * 4));
         self.pieces[i / 8] |= Piece::to_int(new_piece) << (i % 8 * 4);
-        Piece::from_int(old)
+        let old = Piece::from_int(old);
+        obs.replace_piece(sq, old, new_piece);
+        old
     }
 
     pub fn render(&self) -> Vec<String> {
@@ -338,7 +344,7 @@ impl BoardState {
             let sq = Square(sq);
             let p = self.get_piece(sq);
             if p.is_some() && p.unwrap().color != color {
-                self.replace_piece(sq, None);
+                self.replace_piece(sq, None, &mut crate::obs::NullObs);
             }
         }
         self.en_passant_square = None;

@@ -50,7 +50,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
             assert!(all_moves.contains(&m), "{:?}", m);
         }
 
-        let capture_square = state.make_move(taken_move);
+        let capture_square = state.make_move(taken_move, &mut rbc::obs::NullObs);
         assert_eq!(capture_square, m.capture_square);
         if forgiving_en_passant &&
            state.en_passant_square.is_some() &&
@@ -100,7 +100,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
                 .and_then(std::convert::identity);  // flatten
             assert_eq!(predicted_taken, taken);
 
-            state.make_move(taken);
+            state.make_move(taken, &mut rbc::obs::NullObs);
             state.fog_of_war(color);
 
             assert_eq!(state, after);
