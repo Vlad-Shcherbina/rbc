@@ -29,7 +29,8 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
     let timer = std::time::Instant::now();
     let mut last_time_left = 900.0;
 
-    let mut html = std::fs::File::create(format!("logs/game_{:05}.html", game_id)).unwrap();
+    let html = std::fs::File::create(format!("logs/game_{:05}.html", game_id)).unwrap();
+    let mut html = std::io::BufWriter::new(html);
     writeln!(html, "{}", rbc::html::PREAMBLE).unwrap();
 
     let mut infoset = Infoset::new(color);

@@ -145,6 +145,7 @@ impl Player for GreedyPlayer {
 
         info!("{:#?}", infoset.render());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
+        html.flush().unwrap();
         let timer = std::time::Instant::now();
 
         let iv = info_value(infoset, html, &mut self.rng);
@@ -169,6 +170,7 @@ impl Player for GreedyPlayer {
         writeln!(html, "</table>").unwrap();
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
+        html.flush().unwrap();
         let m: f64 = hz.iter()
             .map(|&(_, e)| e)
             .max_by(|e1, e2| e1.partial_cmp(e2).unwrap())
@@ -189,6 +191,7 @@ impl Player for GreedyPlayer {
         write!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
         append_to_summary!(html, "<td class=numcol>{}</td>", infoset.possible_states.len());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
+        html.flush().unwrap();
     }
 
     fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
@@ -228,6 +231,7 @@ impl Player for GreedyPlayer {
             0
         };
         writeln!(html, "<p>search depth {}</p>", depth).unwrap();
+        html.flush().unwrap();
         let search_timer = std::time::Instant::now();
         let mut eval_cache = HashMap::<BoardState, CacheEntry>::new();
         for (i, &requested) in candidates.iter().enumerate() {
@@ -262,6 +266,7 @@ impl Player for GreedyPlayer {
         }
         writeln!(html, "<p>search took {:>5.1}s</p>", search_timer.elapsed().as_secs_f64()).unwrap();
         writeln!(html, "<p>{} matrix cells, {} unique</p>", n * m, eval_cache.len()).unwrap();
+        html.flush().unwrap();
         info!("{} matrix cells, {} unique", n * m, eval_cache.len());
         info!("solving...");
         let sol = fictitious_play(m, n, &payoff, 100_000);
@@ -319,6 +324,7 @@ impl Player for GreedyPlayer {
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
+        html.flush().unwrap();
         candidates.into_iter()
             .map(Option::Some)
             .zip(sol.strategy1)
@@ -344,6 +350,7 @@ impl Player for GreedyPlayer {
         }
         writeln!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
         append_to_summary!(html, "<td class=numcol>{}</td></tr>", infoset.possible_states.len());
+        html.flush().unwrap();
         self.move_number += 2;
     }
 
