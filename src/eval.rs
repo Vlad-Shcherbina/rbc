@@ -11,7 +11,10 @@ fn material_value(k: PieceKind) -> i32 {
     }
 }
 
-pub fn see(board: &BoardState, sq: Square, color: Color) -> i32 {
+pub fn see(
+    board: &mut BoardState, obs: &mut crate::obs::StateObs,
+    sq: Square, color: Color,
+) -> i32 {
     assert_eq!(board.side_to_play(), color);
     let cap = board.get_piece(sq).unwrap();
     assert_eq!(cap.color, color.opposite());
@@ -22,9 +25,11 @@ pub fn see(board: &BoardState, sq: Square, color: Color) -> i32 {
             material_value(kind)
         });
     if let Some(am) = am {
-        let mut board2 = board.clone();
-        board2.make_move(Some(am), &mut crate::obs::NullObs);
-        0.max(material_value(cap.kind) - see(&board2, sq, color.opposite()))
+        obs.push(board);
+        board.make_move(Some(am), obs);
+        let result = 0.max(material_value(cap.kind) - see(board, obs, sq, color.opposite()));
+        obs.pop(board);
+        result
     } else {
         0
     }
@@ -33,36 +38,42 @@ pub fn see(board: &BoardState, sq: Square, color: Color) -> i32 {
 #[cfg(test)]
 #[test]
 fn test_see() {
-    let board: BoardState = fen::BoardState::from_fen(
+    let mut board: BoardState = fen::BoardState::from_fen(
         "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    assert_eq!(see(&board, Square::from_san("e4"), Color::Black), 0);
+    let mut obs = crate::obs::StateObs::new(&board);
+    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 0);
 
-    let board: BoardState = fen::BoardState::from_fen(
+    let mut board: BoardState = fen::BoardState::from_fen(
         "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    assert_eq!(see(&board, Square::from_san("e4"), Color::Black), 100);
+    let mut obs = crate::obs::StateObs::new(&board);
+    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 100);
 
-    let board: BoardState = fen::BoardState::from_fen(
+    let mut board: BoardState = fen::BoardState::from_fen(
         "rnbqkb1r/pppppppp/5n2/8/4P3/3B4/PPPP1PPP/RNBQK1NR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    assert_eq!(see(&board, Square::from_san("e4"), Color::Black), 0);
+    let mut obs = crate::obs::StateObs::new(&board);
+    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 0);
 
-    let board: BoardState = fen::BoardState::from_fen(
+    let mut board: BoardState = fen::BoardState::from_fen(
         "rnb1kb1r/pppppppp/4qn2/8/4P3/3B4/PPPP1PPP/RNBQK1NR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    assert_eq!(see(&board, Square::from_san("e4"), Color::Black), 100);
+    let mut obs = crate::obs::StateObs::new(&board);
+    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 100);
 
-    let board: BoardState = fen::BoardState::from_fen(
+    let mut board: BoardState = fen::BoardState::from_fen(
         "rnbqkbbr/pppppppp/8/6n1/4R3/3P4/PPP1PPPP/RNBQKBN1 b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    assert_eq!(see(&board, Square::from_san("e4"), Color::Black),
+    let mut obs = crate::obs::StateObs::new(&board);
+    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black),
                 material_value(PieceKind::Rook) - material_value(PieceKind::Knight));
 
-    let board: BoardState = fen::BoardState::from_fen(
+    let mut board: BoardState = fen::BoardState::from_fen(
         "r1bqkbbr/pppppppp/8/2n3n1/4R3/3PQ3/PPP1PPPP/RNB1KBN1 b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    assert_eq!(see(&board, Square::from_san("e4"), Color::Black),
+    let mut obs = crate::obs::StateObs::new(&board);
+    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black),
                 material_value(PieceKind::Rook) - material_value(PieceKind::Knight));
 }
 
@@ -111,6 +122,7 @@ fn standing_pat_material_only(board: &BoardState, color: Color) -> i32 {
 
 pub struct Ctx {
     board: BoardState,
+    obs: crate::obs::StateObs,
     ply: usize,
     pub pvs: Vec<Vec<Move>>,
     pub print: bool,
@@ -120,6 +132,7 @@ pub struct Ctx {
 impl Ctx {
     pub fn new(board: BoardState) -> Ctx {
         Ctx {
+            obs: crate::obs::StateObs::new(&board),
             board,
             ply: 0,
             pvs: Vec::new(),
@@ -183,14 +196,14 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
 
         let mut ranked_moves: Vec<(Move, i32)> = Vec::with_capacity(all_moves.len());
         for m in all_moves {
-            if ctx.board.get_piece(m.to).is_none() {
-                continue;
-            }
-            let old_board = ctx.board.clone();
-            let cap = ctx.board.make_move(Some(m), &mut crate::obs::NullObs);
-            let cap = old_board.get_piece(cap.unwrap()).unwrap();
-            let rank = material_value(cap.kind) - see(&ctx.board, m.to, color.opposite());
-            ctx.board = old_board;
+            let cap2 = match ctx.board.get_piece(m.to) {
+                None => continue,
+                Some(p) => p,
+            };
+            ctx.obs.push(&ctx.board);
+            ctx.board.make_move(Some(m), &mut ctx.obs);
+            let rank = material_value(cap2.kind) - see(&mut ctx.board, &mut ctx.obs, m.to, color.opposite());
+            ctx.obs.pop(&mut ctx.board);
             if rank >= 0 {
                 ranked_moves.push((m, rank));
             }
@@ -199,12 +212,12 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         all_moves = ranked_moves.into_iter().map(|(m, _)| m).collect();
     }
     for m in all_moves {
-        let old_board = ctx.board.clone();
-        ctx.board.make_move(Some(m), &mut crate::obs::NullObs);
+        ctx.obs.push(&ctx.board);
+        ctx.board.make_move(Some(m), &mut ctx.obs);
         ctx.ply += 1;
         let t = -search((depth - 1).max(0), -beta, -alpha, ctx);
         ctx.ply -= 1;
-        ctx.board = old_board;
+        ctx.obs.pop(&mut ctx.board);
         if t > alpha {
             ctx.pvs[ctx.ply].clear();
             ctx.pvs[ctx.ply].push(m);
