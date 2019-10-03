@@ -110,10 +110,23 @@ fn standing_pat_material_only(board: &BoardState, color: Color) -> i32 {
 }
 
 pub struct Ctx {
-    pub ply: usize,
+    board: BoardState,
+    ply: usize,
     pub pvs: Vec<Vec<Move>>,
     pub print: bool,
     pub expensive_eval: bool,
+}
+
+impl Ctx {
+    pub fn new(board: BoardState) -> Ctx {
+        Ctx {
+            board,
+            ply: 0,
+            pvs: Vec::new(),
+            print: false,
+            expensive_eval: false,
+        }
+    }
 }
 
 macro_rules! tree_println {
@@ -125,37 +138,37 @@ macro_rules! tree_println {
     })
 }
 
-pub fn search(depth: i32, board: &BoardState, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
+pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     assert!(alpha < beta);
     while ctx.pvs.len() <= ctx.ply {
         ctx.pvs.push(Vec::new());
     }
     ctx.pvs[ctx.ply].clear();
 
-    let color = board.side_to_play();
-    let king = board.find_king(color);
+    let color = ctx.board.side_to_play();
+    let king = ctx.board.find_king(color);
     if king.is_none() {
         return (-10000 + ctx.ply as i32).max(alpha).min(beta);
     }
     let king = king.unwrap();
 
-    let opp_king = board.find_king(color.opposite());
+    let opp_king = ctx.board.find_king(color.opposite());
     if opp_king.is_none() {
         return (10000 - ctx.ply as i32).max(alpha).min(beta);
     }
-    let king_attacks = board.all_attacks_to(opp_king.unwrap(), color);
+    let king_attacks = ctx.board.all_attacks_to(opp_king.unwrap(), color);
     if !king_attacks.is_empty() {
         ctx.pvs[ctx.ply].push(king_attacks[0]);
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
     }
 
-    let mut all_moves = board.all_moves();
+    let mut all_moves = ctx.board.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
-    if depth == 0 && board.all_attacks_to(king, color.opposite()).is_empty() {
+    if depth == 0 && ctx.board.all_attacks_to(king, color.opposite()).is_empty() {
         let static_val = if ctx.expensive_eval {
-            standing_pat(board, color, &all_moves)
+            standing_pat(&ctx.board, color, &all_moves)
         } else {
-            standing_pat_material_only(board, color)
+            standing_pat_material_only(&ctx.board, color)
         };
         if static_val >= beta {
             tree_println!(ctx, "standing pat cutoff {}", static_val);
@@ -170,13 +183,14 @@ pub fn search(depth: i32, board: &BoardState, mut alpha: i32, beta: i32, ctx: &m
 
         let mut ranked_moves: Vec<(Move, i32)> = Vec::with_capacity(all_moves.len());
         for m in all_moves {
-            if board.get_piece(m.to).is_none() {
+            if ctx.board.get_piece(m.to).is_none() {
                 continue;
             }
-            let mut b2 = board.clone();
-            let cap = b2.make_move(Some(m), &mut crate::obs::NullObs);
-            let cap = board.get_piece(cap.unwrap()).unwrap();
-            let rank = material_value(cap.kind) - see(&b2, m.to, color.opposite());
+            let old_board = ctx.board.clone();
+            let cap = ctx.board.make_move(Some(m), &mut crate::obs::NullObs);
+            let cap = old_board.get_piece(cap.unwrap()).unwrap();
+            let rank = material_value(cap.kind) - see(&ctx.board, m.to, color.opposite());
+            ctx.board = old_board;
             if rank >= 0 {
                 ranked_moves.push((m, rank));
             }
@@ -185,11 +199,12 @@ pub fn search(depth: i32, board: &BoardState, mut alpha: i32, beta: i32, ctx: &m
         all_moves = ranked_moves.into_iter().map(|(m, _)| m).collect();
     }
     for m in all_moves {
-        let mut b2 = board.clone();
-        b2.make_move(Some(m), &mut crate::obs::NullObs);
+        let old_board = ctx.board.clone();
+        ctx.board.make_move(Some(m), &mut crate::obs::NullObs);
         ctx.ply += 1;
-        let t = -search((depth - 1).max(0), &b2, -beta, -alpha, ctx);
+        let t = -search((depth - 1).max(0), -beta, -alpha, ctx);
         ctx.ply -= 1;
+        ctx.board = old_board;
         if t > alpha {
             ctx.pvs[ctx.ply].clear();
             ctx.pvs[ctx.ply].push(m);
@@ -221,13 +236,9 @@ fn test_quiescence() {
     // let board: BoardState = fen::BoardState::from_fen(
         // "rnbqk2r/pppppppp/5n2/3b4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut ctx = Ctx {
-        ply: 0,
-        pvs: Vec::new(),
-        print: true,
-        expensive_eval: false,
-    };
-    let q = search(0, &board, -10000, 10000, &mut ctx);
+    let mut ctx = Ctx::new(board);
+    ctx.print = true;
+    let q = search(0, -10000, 10000, &mut ctx);
     assert_eq!(ctx.ply, 0);
     dbg!(q);
     dbg!(&ctx.pvs[0]);

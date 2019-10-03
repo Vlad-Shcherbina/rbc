@@ -41,13 +41,8 @@ fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) 
         let mut s2 = state.clone();
         s2.make_move(taken_move, &mut crate::obs::NullObs);
 
-        let mut ctx = crate::eval::Ctx {
-            ply: 0,
-            pvs: Vec::new(),
-            print: false,
-            expensive_eval: false,
-        };
-        let t = -crate::eval::search(0, &s2, -beta, -alpha, &mut ctx);
+        let mut ctx = crate::eval::Ctx::new(s2);
+        let t = -crate::eval::search(0, -beta, -alpha, &mut ctx);
 
         if t <= alpha {
             return alpha;
@@ -240,14 +235,10 @@ impl Player for GreedyPlayer {
                 let mut s2 = s.clone();
                 let cap = s2.make_move(taken, &mut crate::obs::NullObs);
                 let e = eval_cache.entry(s2.clone()).or_insert_with(|| {
-                    let mut ctx = crate::eval::Ctx {
-                        ply: 0,
-                        pvs: Vec::new(),
-                        print: false,
-                        expensive_eval: true,
-                    };
+                    let mut ctx = crate::eval::Ctx::new(s2.clone());
+                    ctx.expensive_eval = true;
                     let mut e = CacheEntry {
-                        value: -crate::eval::search(depth, &s2, -10000, 10000, &mut ctx) as f32,
+                        value: -crate::eval::search(depth, -10000, 10000, &mut ctx) as f32,
                         pv: ctx.pvs[0].clone(),
                         bonus: 0.0,
                     };
