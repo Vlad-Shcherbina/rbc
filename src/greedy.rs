@@ -42,7 +42,7 @@ fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) 
             print: false,
             expensive_eval: false,
         };
-        let t = -crate::eval::search(&s2, -beta, -alpha, &mut ctx);
+        let t = -crate::eval::search(0, &s2, -beta, -alpha, &mut ctx);
 
         if t <= alpha {
             return alpha;
@@ -200,6 +200,17 @@ impl Player for GreedyPlayer {
             pv: Vec<Move>,
             bonus: f32,
         }
+        let depth = if n * m < 100 {
+            3
+        } else if n * m < 500 {
+            2
+        } else if n * m < 2000 {
+            1
+        } else {
+            0
+        };
+        writeln!(html, "<p>search depth {}</p>", depth).unwrap();
+        let search_timer = std::time::Instant::now();
         let mut eval_cache = HashMap::<BoardState, CacheEntry>::new();
         for (i, &requested) in candidates.iter().enumerate() {
             for (j, &s) in states.iter().enumerate() {
@@ -214,7 +225,7 @@ impl Player for GreedyPlayer {
                         expensive_eval: true,
                     };
                     let mut e = CacheEntry {
-                        value: -crate::eval::search(&s2, -10000, 10000, &mut ctx) as f32,
+                        value: -crate::eval::search(depth, &s2, -10000, 10000, &mut ctx) as f32,
                         pv: ctx.pvs[0].clone(),
                         bonus: 0.0,
                     };
@@ -231,6 +242,7 @@ impl Player for GreedyPlayer {
             }
             info!("{} rows left", m - 1 - i);
         }
+        writeln!(html, "<p>search took {:>5.1}s</p>", search_timer.elapsed().as_secs_f64()).unwrap();
         writeln!(html, "<p>{} matrix cells, {} unique</p>", n * m, eval_cache.len()).unwrap();
         info!("{} matrix cells, {} unique", n * m, eval_cache.len());
         info!("solving...");

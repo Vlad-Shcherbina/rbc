@@ -134,7 +134,7 @@ macro_rules! tree_println {
     })
 }
 
-pub fn search(board: &BoardState, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
+pub fn search(depth: i32, board: &BoardState, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     assert!(alpha < beta);
     while ctx.pvs.len() <= ctx.ply {
         ctx.pvs.push(Vec::new());
@@ -160,7 +160,7 @@ pub fn search(board: &BoardState, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i
 
     let mut all_moves = board.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
-    if board.all_attacks_to(king, color.opposite()).is_empty() {
+    if depth == 0 && board.all_attacks_to(king, color.opposite()).is_empty() {
         let static_val = if ctx.expensive_eval {
             standing_pat(board, color, &all_moves)
         } else {
@@ -197,7 +197,7 @@ pub fn search(board: &BoardState, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i
         let mut b2 = board.clone();
         b2.make_move(Some(m));
         ctx.ply += 1;
-        let t = -search(&b2, -beta, -alpha, ctx);
+        let t = -search((depth - 1).max(0), &b2, -beta, -alpha, ctx);
         ctx.ply -= 1;
         if t > alpha {
             ctx.pvs[ctx.ply].clear();
@@ -236,7 +236,7 @@ fn test_quiescence() {
         print: true,
         expensive_eval: false,
     };
-    let q = search(&board, -10000, 10000, &mut ctx);
+    let q = search(0, &board, -10000, 10000, &mut ctx);
     assert_eq!(ctx.ply, 0);
     dbg!(q);
     dbg!(&ctx.pvs[0]);
