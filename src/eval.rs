@@ -12,23 +12,23 @@ fn material_value(k: PieceKind) -> i32 {
 }
 
 pub fn see(
-    board: &mut BoardState, obs: &mut crate::obs::StateObs,
+    state: &mut crate::obs::BigState,
     sq: Square, color: Color,
 ) -> i32 {
-    assert_eq!(board.side_to_play(), color);
-    let cap = board.get_piece(sq).unwrap();
+    assert_eq!(state.board.side_to_play(), color);
+    let cap = state.board.get_piece(sq).unwrap();
     assert_eq!(cap.color, color.opposite());
-    let am = board.all_attacks_to(sq, color)
+    let am = state.board.all_attacks_to(sq, color)
         .into_iter()
         .min_by_key(|am| {
-            let kind = am.promotion.unwrap_or(board.get_piece(am.from).unwrap().kind);
+            let kind = am.promotion.unwrap_or(state.board.get_piece(am.from).unwrap().kind);
             material_value(kind)
         });
     if let Some(am) = am {
-        obs.push(board);
-        board.make_move(Some(am), obs);
-        let result = 0.max(material_value(cap.kind) - see(board, obs, sq, color.opposite()));
-        obs.pop(board);
+        state.push();
+        state.make_move(Some(am));
+        let result = 0.max(material_value(cap.kind) - see(state, sq, color.opposite()));
+        state.pop();
         result
     } else {
         0
@@ -38,42 +38,42 @@ pub fn see(
 #[cfg(test)]
 #[test]
 fn test_see() {
-    let mut board: BoardState = fen::BoardState::from_fen(
+    let board: BoardState = fen::BoardState::from_fen(
         "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut obs = crate::obs::StateObs::new(&board);
-    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 0);
+    let mut state = crate::obs::BigState::new(board);
+    assert_eq!(see(&mut state, Square::from_san("e4"), Color::Black), 0);
 
-    let mut board: BoardState = fen::BoardState::from_fen(
+    let board: BoardState = fen::BoardState::from_fen(
         "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut obs = crate::obs::StateObs::new(&board);
-    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 100);
+    let mut state = crate::obs::BigState::new(board);
+    assert_eq!(see(&mut state, Square::from_san("e4"), Color::Black), 100);
 
-    let mut board: BoardState = fen::BoardState::from_fen(
+    let board: BoardState = fen::BoardState::from_fen(
         "rnbqkb1r/pppppppp/5n2/8/4P3/3B4/PPPP1PPP/RNBQK1NR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut obs = crate::obs::StateObs::new(&board);
-    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 0);
+    let mut state = crate::obs::BigState::new(board);
+    assert_eq!(see(&mut state, Square::from_san("e4"), Color::Black), 0);
 
-    let mut board: BoardState = fen::BoardState::from_fen(
+    let board: BoardState = fen::BoardState::from_fen(
         "rnb1kb1r/pppppppp/4qn2/8/4P3/3B4/PPPP1PPP/RNBQK1NR b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut obs = crate::obs::StateObs::new(&board);
-    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black), 100);
+    let mut state = crate::obs::BigState::new(board);
+    assert_eq!(see(&mut state, Square::from_san("e4"), Color::Black), 100);
 
-    let mut board: BoardState = fen::BoardState::from_fen(
+    let board: BoardState = fen::BoardState::from_fen(
         "rnbqkbbr/pppppppp/8/6n1/4R3/3P4/PPP1PPPP/RNBQKBN1 b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut obs = crate::obs::StateObs::new(&board);
-    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black),
+    let mut state = crate::obs::BigState::new(board);
+    assert_eq!(see(&mut state, Square::from_san("e4"), Color::Black),
                 material_value(PieceKind::Rook) - material_value(PieceKind::Knight));
 
-    let mut board: BoardState = fen::BoardState::from_fen(
+    let board: BoardState = fen::BoardState::from_fen(
         "r1bqkbbr/pppppppp/8/2n3n1/4R3/3PQ3/PPP1PPPP/RNB1KBN1 b KQkq - 0 0").unwrap().into();
     dbg!(board.render());
-    let mut obs = crate::obs::StateObs::new(&board);
-    assert_eq!(see(&mut board, &mut obs, Square::from_san("e4"), Color::Black),
+    let mut state = crate::obs::BigState::new(board);
+    assert_eq!(see(&mut state, Square::from_san("e4"), Color::Black),
                 material_value(PieceKind::Rook) - material_value(PieceKind::Knight));
 }
 
@@ -121,8 +121,7 @@ fn standing_pat_material_only(board: &BoardState, color: Color) -> i32 {
 }
 
 pub struct Ctx {
-    board: BoardState,
-    obs: crate::obs::StateObs,
+    state: crate::obs::BigState,
     ply: usize,
     pub pvs: Vec<Vec<Move>>,
     pub print: bool,
@@ -132,8 +131,7 @@ pub struct Ctx {
 impl Ctx {
     pub fn new(board: BoardState) -> Ctx {
         Ctx {
-            obs: crate::obs::StateObs::new(&board),
-            board,
+            state: crate::obs::BigState::new(board),
             ply: 0,
             pvs: Vec::new(),
             print: false,
@@ -158,30 +156,30 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     }
     ctx.pvs[ctx.ply].clear();
 
-    let color = ctx.board.side_to_play();
-    let king = ctx.board.find_king(color);
+    let color = ctx.state.board.side_to_play();
+    let king = ctx.state.board.find_king(color);
     if king.is_none() {
         return (-10000 + ctx.ply as i32).max(alpha).min(beta);
     }
     let king = king.unwrap();
 
-    let opp_king = ctx.board.find_king(color.opposite());
+    let opp_king = ctx.state.board.find_king(color.opposite());
     if opp_king.is_none() {
         return (10000 - ctx.ply as i32).max(alpha).min(beta);
     }
-    let king_attacks = ctx.board.all_attacks_to(opp_king.unwrap(), color);
+    let king_attacks = ctx.state.board.all_attacks_to(opp_king.unwrap(), color);
     if !king_attacks.is_empty() {
         ctx.pvs[ctx.ply].push(king_attacks[0]);
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
     }
 
-    let mut all_moves = ctx.board.all_moves();
+    let mut all_moves = ctx.state.board.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
-    if depth == 0 && ctx.board.all_attacks_to(king, color.opposite()).is_empty() {
+    if depth == 0 && ctx.state.board.all_attacks_to(king, color.opposite()).is_empty() {
         let static_val = if ctx.expensive_eval {
-            standing_pat(&ctx.board, color, &all_moves)
+            standing_pat(&ctx.state.board, color, &all_moves)
         } else {
-            standing_pat_material_only(&ctx.board, color)
+            standing_pat_material_only(&ctx.state.board, color)
         };
         if static_val >= beta {
             tree_println!(ctx, "standing pat cutoff {}", static_val);
@@ -196,14 +194,14 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
 
         let mut ranked_moves: Vec<(Move, i32)> = Vec::with_capacity(all_moves.len());
         for m in all_moves {
-            let cap2 = match ctx.board.get_piece(m.to) {
+            let cap2 = match ctx.state.board.get_piece(m.to) {
                 None => continue,
                 Some(p) => p,
             };
-            ctx.obs.push(&ctx.board);
-            ctx.board.make_move(Some(m), &mut ctx.obs);
-            let rank = material_value(cap2.kind) - see(&mut ctx.board, &mut ctx.obs, m.to, color.opposite());
-            ctx.obs.pop(&mut ctx.board);
+            ctx.state.push();
+            ctx.state.make_move(Some(m));
+            let rank = material_value(cap2.kind) - see(&mut ctx.state, m.to, color.opposite());
+            ctx.state.pop();
             if rank >= 0 {
                 ranked_moves.push((m, rank));
             }
@@ -212,12 +210,12 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         all_moves = ranked_moves.into_iter().map(|(m, _)| m).collect();
     }
     for m in all_moves {
-        ctx.obs.push(&ctx.board);
-        ctx.board.make_move(Some(m), &mut ctx.obs);
+        ctx.state.push();
+        ctx.state.make_move(Some(m));
         ctx.ply += 1;
         let t = -search((depth - 1).max(0), -beta, -alpha, ctx);
         ctx.ply -= 1;
-        ctx.obs.pop(&mut ctx.board);
+        ctx.state.pop();
         if t > alpha {
             ctx.pvs[ctx.ply].clear();
             ctx.pvs[ctx.ply].push(m);

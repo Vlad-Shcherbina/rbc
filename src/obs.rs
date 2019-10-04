@@ -1,4 +1,4 @@
-use crate::game::{Square, Piece, BoardState};
+use crate::game::{Square, Piece, Move, BoardState};
 
 pub trait Obs {
     fn replace_piece(&mut self, sq: Square, old: Option<Piece>, new: Option<Piece>);
@@ -78,4 +78,30 @@ fn test_obs() {
     b.make_move(Some(m), &mut obs);
     obs.pop(&mut b);
     assert_eq!(b, BoardState::initial());
+}
+
+pub struct BigState {
+    pub board: BoardState,
+    pub obs: StateObs,
+}
+
+impl BigState {
+    pub fn new(board: BoardState) -> BigState {
+        BigState {
+            obs: StateObs::new(&board),
+            board,
+        }
+    }
+
+    pub fn push(&mut self) {
+        self.obs.push(&self.board);
+    }
+
+    pub fn pop(&mut self) {
+        self.obs.pop(&mut self.board);
+    }
+
+    pub fn make_move(&mut self, m: Option<Move>) -> Option<Square> {
+        self.board.make_move(m, &mut self.obs)
+    }
 }
