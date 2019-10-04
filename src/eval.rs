@@ -18,12 +18,7 @@ pub fn see(
     assert_eq!(state.board.side_to_play(), color);
     let cap = state.board.get_piece(sq).unwrap();
     assert_eq!(cap.color, color.opposite());
-    let am = state.board.all_attacks_to(sq, color)
-        .into_iter()
-        .min_by_key(|am| {
-            let kind = am.promotion.unwrap_or(state.board.get_piece(am.from).unwrap().kind);
-            material_value(kind)
-        });
+    let am = state.cheapest_attack_to(sq, color);
     if let Some(am) = am {
         state.push();
         state.make_move(Some(am));
@@ -158,15 +153,14 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         None => return (10000 - ctx.ply as i32).max(alpha).min(beta),
         Some(sq) => sq,
     };
-    let king_attacks = ctx.state.board.all_attacks_to(opp_king, color);
-    if !king_attacks.is_empty() {
-        ctx.pvs[ctx.ply].push(king_attacks[0]);
+    if let Some(ka) = ctx.state.cheapest_attack_to(opp_king, color) {
+        ctx.pvs[ctx.ply].push(ka);
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
     }
 
     let mut all_moves = ctx.state.board.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
-    if depth == 0 && ctx.state.board.all_attacks_to(king, color.opposite()).is_empty() {
+    if depth == 0 && ctx.state.cheapest_attack_to(king, color.opposite()).is_none() {
         let static_val = if ctx.expensive_eval {
             standing_pat(&ctx.state, color, &all_moves)
         } else {

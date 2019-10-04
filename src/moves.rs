@@ -15,6 +15,11 @@ const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
     Some(PieceKind::Queen),
 ];
 
+pub const KNIGHT_DELTAS: [(i8, i8); 8] = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)];
+pub const QUEEN_DELTAS: [(i8, i8); 8] = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)];
+pub const BISHOP_DELTAS: [(i8, i8); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+pub const ROOK_DELTAS: [(i8, i8); 4] = [(-1, 0), (0, -1), (0, 1), (1, 0)];
+
 impl BoardState {
     #[inline(never)]
     pub fn make_move_under_fog(&mut self, capture_square: Option<Square>) {
@@ -216,9 +221,9 @@ impl BoardState {
                 PieceKind::Rook |
                 PieceKind::Queen => {
                     let dirs: &[_] = match p.kind {
-                        PieceKind::Bishop => &[(-1, -1), (-1, 1), (1, -1), (1, 1)],
-                        PieceKind::Rook => &[(-1, 0), (0, -1), (0, 1), (1, 0)],
-                        PieceKind::Queen => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        PieceKind::Bishop => &BISHOP_DELTAS,
+                        PieceKind::Rook => &ROOK_DELTAS,
+                        PieceKind::Queen => &QUEEN_DELTAS,
                         _ => unreachable!(),
                     };
                     for &(dr, df) in dirs {
@@ -241,8 +246,8 @@ impl BoardState {
                 PieceKind::Knight |
                 PieceKind::King => {
                     let dirs: &[_] = match p.kind {
-                        PieceKind::Knight => &[(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)],
-                        PieceKind::King => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        PieceKind::Knight => &KNIGHT_DELTAS,
+                        PieceKind::King => &QUEEN_DELTAS,
                         _ => unreachable!(),
                     };
                     for &(dr, df) in dirs {
@@ -464,8 +469,8 @@ impl BoardState {
                 PieceKind::Knight |
                 PieceKind::King => {
                     let dirs: &[_] = match p.kind {
-                        PieceKind::Knight => &[(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)],
-                        PieceKind::King => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        PieceKind::Knight => &KNIGHT_DELTAS,
+                        PieceKind::King => &QUEEN_DELTAS,
                         _ => unreachable!(),
                     };
                     for &(dr, df) in dirs {
@@ -487,9 +492,9 @@ impl BoardState {
                 PieceKind::Rook |
                 PieceKind::Queen => {
                     let dirs: &[_] = match p.kind {
-                        PieceKind::Bishop => &[(-1, -1), (-1, 1), (1, -1), (1, 1)],
-                        PieceKind::Rook => &[(-1, 0), (0, -1), (0, 1), (1, 0)],
-                        PieceKind::Queen => &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
+                        PieceKind::Bishop => &BISHOP_DELTAS,
+                        PieceKind::Rook => &ROOK_DELTAS,
+                        PieceKind::Queen => &QUEEN_DELTAS,
                         _ => unreachable!(),
                     };
                     for &(dr, df) in dirs {
@@ -567,7 +572,7 @@ impl BoardState {
                 }
             }
         }
-        for &(dr, df) in &[(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)] {
+        for &(dr, df) in &KNIGHT_DELTAS {
             if rank + dr < 0 || rank + dr >= 8 ||
                file + df < 0 || file + df >= 8 {
                 continue;
@@ -578,7 +583,7 @@ impl BoardState {
             }
         }
 
-        for &(dr, df) in &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)] {
+        for &(dr, df) in &QUEEN_DELTAS {
             let mut r = rank;
             let mut f = file;
             loop {

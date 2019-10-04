@@ -38,10 +38,16 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         let all_moves: HashSet<_> = state.all_moves().into_iter().collect();
         let all_moves_naive: HashSet<_> = state.all_moves_naive().into_iter().collect();
         assert_eq!(all_moves, all_moves_naive);
+        let big_state = rbc::obs::BigState::new(state.clone());
         for sq in (0..64).map(Square) {
             if state.get_piece(sq).map_or(false, |p| p.color != state.side_to_play()) {
-                for am in state.all_attacks_to(sq, state.side_to_play()) {
+                let all_attacks_to = state.all_attacks_to(sq, state.side_to_play());
+                for &am in &all_attacks_to {
                     assert!(all_moves.contains(&am), "{:?}", am);
+                }
+                let cheapest_attack = big_state.cheapest_attack_to_for_testing(sq, state.side_to_play());
+                if let Some(cm) = cheapest_attack {
+                    assert!(all_attacks_to.contains(&cm), "{:?}, {:#?}", cm, state.render());
                 }
             }
         }

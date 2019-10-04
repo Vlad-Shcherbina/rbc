@@ -178,4 +178,125 @@ impl BigState {
             Some(Square(k.trailing_zeros() as i8))
         }
     }
+
+    pub fn cheapest_attack_to_for_testing(&self, to: Square, color: Color) -> Option<Move> {
+        use crate::eval::material_value;
+        let naive = self.cheapest_attack_to_naive(to, color);
+        let fast = self.cheapest_attack_to(to, color);
+        match (naive, fast) {
+            (None, None) => {}
+            (Some(m1), Some(m2)) => assert_eq!(
+                material_value(m1.promotion.unwrap_or(self.board.get_piece(m1.from).unwrap().kind)),
+                material_value(m2.promotion.unwrap_or(self.board.get_piece(m2.from).unwrap().kind)),
+                "{:#?} naive:{:?} fast:{:?}", self.board.render(), naive, fast,
+            ),
+            _ => panic!("{:#?} naive:{:?} fast:{:?}", self.board.render(), naive, fast),
+        }
+        fast
+    }
+
+    #[inline(never)]
+    pub fn cheapest_attack_to_naive(&self, to: Square, color: Color) -> Option<Move> {
+        use crate::eval::material_value;
+        self.board.all_attacks_to(to, color)
+        .into_iter()
+        .min_by_key(|am| {
+            let kind = am.promotion.unwrap_or(self.board.get_piece(am.from).unwrap().kind);
+            material_value(kind)
+        })
+    }
+
+    #[inline(never)]
+    pub fn cheapest_attack_to(&self, to: Square, color: Color) -> Option<Move> {
+        match color {
+            Color::White => if to.0 < 56 {
+                let bit = 1u64 << to.0;
+                let froms = self.obs.white & self.obs.pawns & (
+                    (bit & 0xfefefefefefefefe) >> 9 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+                if froms != 0 {
+                    let from = Square(froms.trailing_zeros() as i8);
+                    return Some(Move { from, to, promotion: None });
+                }
+            }
+            Color::Black => {
+                if to.0 >= 8 {
+                    let bit = 1u64 << to.0;
+                    let froms = self.obs.black & self.obs.pawns & (
+                        (bit & 0xfefefefefefefefe) << 7 |
+                        (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                    if froms != 0 {
+                        let from = Square(froms.trailing_zeros() as i8);
+                        return Some(Move { from, to, promotion: None });
+                    }
+                }
+            }
+        }
+        let my_pieces = match color {
+            Color::White => self.obs.white,
+            Color::Black => self.obs.black,
+        };
+        use crate::bitboard::*;
+        let knights = my_pieces & self.obs.knights & KNIGHT_ATTACKS[to.0 as usize];
+        if knights != 0 {
+            let from = Square(knights.trailing_zeros() as i8);
+            return Some(Move { from, to, promotion: None });
+        }
+
+        let occ = self.obs.white | self.obs.black;
+
+        let bishops = my_pieces & self.obs.bishops & BISHOP_ATTACKS[to.0 as usize];
+        for from in iter_one_positions(bishops) {
+            if occ & IN_BETWEEN[to.0 as usize * 64 + from as usize] == 0 {
+                return Some(Move { from: Square(from as i8), to, promotion: None });
+            }
+        }
+
+        let rooks = my_pieces & self.obs.rooks & ROOK_ATTACKS[to.0 as usize];
+        for from in iter_one_positions(rooks) {
+            if occ & IN_BETWEEN[to.0 as usize * 64 + from as usize] == 0 {
+                return Some(Move { from: Square(from as i8), to, promotion: None });
+            }
+        }
+
+        let queens = my_pieces & self.obs.queens & (BISHOP_ATTACKS[to.0 as usize] | ROOK_ATTACKS[to.0 as usize]);
+        for from in iter_one_positions(queens) {
+            if occ & IN_BETWEEN[to.0 as usize * 64 + from as usize] == 0 {
+                return Some(Move { from: Square(from as i8), to, promotion: None });
+            }
+        }
+
+        match color {
+            Color::White => if to.0 >= 56 {
+                let bit = 1u64 << to.0;
+                let froms = self.obs.white & self.obs.pawns & (
+                    (bit & 0xfefefefefefefefe) >> 9 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+                if froms != 0 {
+                    let from = Square(froms.trailing_zeros() as i8);
+                    return Some(Move { from, to, promotion: Some(PieceKind::Queen) });
+                }
+            }
+            Color::Black => {
+                if to.0 < 8 {
+                    let bit = 1u64 << to.0;
+                    let froms = self.obs.black & self.obs.pawns & (
+                        (bit & 0xfefefefefefefefe) << 7 |
+                        (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                    if froms != 0 {
+                        let from = Square(froms.trailing_zeros() as i8);
+                        return Some(Move { from, to, promotion: Some(PieceKind::Queen) });
+                    }
+                }
+            }
+        }
+
+        let kings = my_pieces & self.obs.kings & KING_ATTACKS[to.0 as usize];
+        if kings != 0 {
+            let from = Square(kings.trailing_zeros() as i8);
+            return Some(Move { from, to, promotion: None });
+        }
+
+        None
+    }
 }

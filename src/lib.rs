@@ -1,4 +1,5 @@
 #[macro_use] pub mod html;
+pub mod bitboard;
 pub mod game;
 pub mod obs;
 pub mod moves;
