@@ -1,4 +1,4 @@
-use crate::game::{Square, Piece, Move, BoardState};
+use crate::game::{Square, Color, Piece, Move, BoardState};
 
 pub trait Obs {
     fn replace_piece(&mut self, sq: Square, old: Option<Piece>, new: Option<Piece>);
@@ -19,6 +19,7 @@ struct UndoState {
 pub struct StateObs {
     undo_states: Vec<UndoState>,
     edits: Vec<(Square, Option<Piece>, Option<Piece>)>,
+    pub material: i32,
 }
 
 impl StateObs {
@@ -26,6 +27,7 @@ impl StateObs {
         let mut obs = StateObs {
             undo_states: Vec::new(),
             edits: Vec::new(),
+            material: 0,
         };
         for sq in (0..64).map(Square) {
             let p = b.get_piece(sq);
@@ -36,7 +38,24 @@ impl StateObs {
         obs
     }
 
-    fn replace_piece_raw(&mut self, _sq: Square, _old: Option<Piece>, _new: Option<Piece>) {}
+    fn replace_piece_raw(&mut self, _sq: Square, old: Option<Piece>, new: Option<Piece>) {
+        if let Some(p) = old {
+            match p.color {
+                Color::White =>
+                    self.material -= crate::eval::material_value(p.kind),
+                Color::Black =>
+                    self.material += crate::eval::material_value(p.kind),
+            }
+        }
+        if let Some(p) = new {
+            match p.color {
+                Color::White =>
+                    self.material += crate::eval::material_value(p.kind),
+                Color::Black =>
+                    self.material -= crate::eval::material_value(p.kind),
+            }
+        }
+    }
 
     pub fn push(&mut self, b: &BoardState) {
         self.undo_states.push(UndoState {

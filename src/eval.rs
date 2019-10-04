@@ -1,6 +1,6 @@
 use crate::game::{Color, PieceKind, Square, Move, BoardState};
 
-fn material_value(k: PieceKind) -> i32 {
+pub fn material_value(k: PieceKind) -> i32 {
     match k {
         PieceKind::Pawn => 100,
         PieceKind::Knight => 350,
@@ -90,7 +90,8 @@ fn mobility_value(kind: PieceKind) -> i32 {
 
 // https://www.chessprogramming.org/Quiescence_Search#Standing_Pat
 #[inline(never)]
-fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
+fn standing_pat(state: &crate::obs::BigState, color: Color, all_moves: &[Move]) -> i32 {
+    let board = &state.board;
     let mut static_val = 0;
     for &m in all_moves {
         static_val += mobility_value(board.get_piece(m.from).unwrap().kind);
@@ -100,24 +101,16 @@ fn standing_pat(board: &BoardState, color: Color, all_moves: &[Move]) -> i32 {
     for m in b2.all_moves() {
         static_val -= mobility_value(board.get_piece(m.from).unwrap().kind);
     }
-    static_val += standing_pat_material_only(board, color);
+    static_val += standing_pat_material_only(state, color);
     static_val
 }
 
 #[inline(never)]
-fn standing_pat_material_only(board: &BoardState, color: Color) -> i32 {
-    let mut static_val = 0;
-    for sq in (0..64).map(Square) {
-        if let Some(p) = board.get_piece(sq) {
-            let v = material_value(p.kind);
-            if p.color == color {
-                static_val += v;
-            } else {
-                static_val -= v;
-            }
-        }
+fn standing_pat_material_only(state: &crate::obs::BigState, color: Color) -> i32 {
+    match color {
+        Color::White => state.obs.material,
+        Color::Black => -state.obs.material,
     }
-    static_val
 }
 
 pub struct Ctx {
@@ -177,9 +170,9 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
     if depth == 0 && ctx.state.board.all_attacks_to(king, color.opposite()).is_empty() {
         let static_val = if ctx.expensive_eval {
-            standing_pat(&ctx.state.board, color, &all_moves)
+            standing_pat(&ctx.state, color, &all_moves)
         } else {
-            standing_pat_material_only(&ctx.state.board, color)
+            standing_pat_material_only(&ctx.state, color)
         };
         if static_val >= beta {
             tree_println!(ctx, "standing pat cutoff {}", static_val);
