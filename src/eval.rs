@@ -85,17 +85,17 @@ fn mobility_value(kind: PieceKind) -> i32 {
 
 // https://www.chessprogramming.org/Quiescence_Search#Standing_Pat
 #[inline(never)]
-fn standing_pat(state: &crate::obs::BigState, color: Color, all_moves: &[Move]) -> i32 {
-    let board = &state.board;
+fn standing_pat(state: &mut crate::obs::BigState, color: Color, all_moves: &[Move]) -> i32 {
     let mut static_val = 0;
     for &m in all_moves {
-        static_val += mobility_value(board.get_piece(m.from).unwrap().kind);
+        static_val += mobility_value(state.board.get_piece(m.from).unwrap().kind);
     }
-    let mut b2 = board.clone();
-    b2.make_move(None, &mut crate::obs::NullObs);
-    for m in b2.all_moves() {
-        static_val -= mobility_value(board.get_piece(m.from).unwrap().kind);
+    state.push();
+    state.make_move(None);
+    for m in state.all_moves() {
+        static_val -= mobility_value(state.board.get_piece(m.from).unwrap().kind);
     }
+    state.pop();
     static_val += standing_pat_material_only(state, color);
     static_val
 }
@@ -158,11 +158,11 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
     }
 
-    let mut all_moves = ctx.state.board.all_moves();
+    let mut all_moves = ctx.state.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
     if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
         let static_val = if ctx.expensive_eval {
-            standing_pat(&ctx.state, color, &all_moves)
+            standing_pat(&mut ctx.state, color, &all_moves)
         } else {
             standing_pat_material_only(&ctx.state, color)
         };

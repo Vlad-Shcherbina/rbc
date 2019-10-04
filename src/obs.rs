@@ -1,4 +1,4 @@
-use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
+use crate::game::{Square, Color, PieceKind, Piece, Move, BoardFlags, BoardState};
 
 pub trait Obs {
     fn replace_piece(&mut self, sq: Square, old: Option<Piece>, new: Option<Piece>);
@@ -352,5 +352,176 @@ impl BigState {
         }
 
         false
+    }
+
+    #[inline(never)]
+    pub fn all_moves(&self) -> Vec<Move> {
+        let mut result = Vec::with_capacity(128);
+        let color = self.board.side_to_play();
+        let (my_pieces, opp_pieces) = match color {
+            Color::White => (self.obs.white, self.obs.black),
+            Color::Black => (self.obs.black, self.obs.white),
+        };
+        let occ = self.obs.white | self.obs.black;
+        use crate::bitboard::*;
+        match color {
+            Color::White => {
+                let froms = my_pieces & self.obs.pawns & (!occ >> 8);
+                for from in iter_one_squares(froms & 0xff00ffff_ffffffff) {
+                    let to = Square(from.0 + 8);
+                    result.push(Move { from, to, promotion: None });
+                }
+                for from in iter_one_squares(froms & 0x00ff0000_00000000) {
+                    let to = Square(from.0 + 8);
+                    for &promotion in crate::moves::PROMOTION_TARGETS {
+                        result.push(Move { from, to, promotion });
+                    }
+                }
+                let froms = froms & 0x00000000_0000ff00 & (!occ >> 16);
+                for from in iter_one_squares(froms) {
+                    let to = Square(from.0 + 16);
+                    result.push(Move { from, to, promotion: None });
+                }
+
+                let froms = my_pieces & self.obs.pawns & 0xfefefefe_fefefefe & (opp_pieces >> 7);
+                for from in iter_one_squares(froms & 0xff00ffff_ffffffff) {
+                    let to = Square(from.0 + 7);
+                    result.push(Move { from, to, promotion: None });
+                }
+                for from in iter_one_squares(froms & 0x00ff0000_00000000) {
+                    let to = Square(from.0 + 7);
+                    for &promotion in crate::moves::PROMOTION_TARGETS {
+                        result.push(Move { from, to, promotion });
+                    }
+                }
+                let froms = my_pieces & self.obs.pawns & 0x7f7f7f7f_7f7f7f7f & (opp_pieces >> 9);
+                for from in iter_one_squares(froms & 0xff00ffff_ffffffff) {
+                    let to = Square(from.0 + 9);
+                    result.push(Move { from, to, promotion: None });
+                }
+                for from in iter_one_squares(froms & 0x00ff0000_00000000) {
+                    let to = Square(from.0 + 9);
+                    for &promotion in crate::moves::PROMOTION_TARGETS {
+                        result.push(Move { from, to, promotion });
+                    }
+                }
+
+                if let Some(ep) = self.board.en_passant_square {
+                    let bit = 1u64 << ep.0;
+                    let froms = my_pieces & self.obs.pawns & (
+                        (bit & 0xfefefefefefefefe) >> 9 |
+                        (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+                    for from in iter_one_squares(froms) {
+                        result.push(Move { from, to: ep, promotion: None });
+                    }
+                }
+            }
+            Color::Black => {
+                let froms = my_pieces & self.obs.pawns & (!occ << 8);
+                for from in iter_one_squares(froms & 0xffffffff_ffff00ff) {
+                    let to = Square(from.0 - 8);
+                    result.push(Move { from, to, promotion: None });
+                }
+                for from in iter_one_squares(froms & 0x00000000_0000ff00) {
+                    let to = Square(from.0 - 8);
+                    for &promotion in crate::moves::PROMOTION_TARGETS {
+                        result.push(Move { from, to, promotion });
+                    }
+                }
+                let froms = froms & 0x00ff0000_00000000 & (!occ << 16);
+                for from in iter_one_squares(froms) {
+                    let to = Square(from.0 - 16);
+                    result.push(Move { from, to, promotion: None });
+                }
+
+                let froms = my_pieces & self.obs.pawns & 0xfefefefe_fefefefe & (opp_pieces << 9);
+                for from in iter_one_squares(froms & 0xffffffff_ffff00ff) {
+                    let to = Square(from.0 - 9);
+                    result.push(Move { from, to, promotion: None });
+                }
+                for from in iter_one_squares(froms & 0x00000000_0000ff00) {
+                    let to = Square(from.0 - 9);
+                    for &promotion in crate::moves::PROMOTION_TARGETS {
+                        result.push(Move { from, to, promotion });
+                    }
+                }
+                let froms = my_pieces & self.obs.pawns & 0x7f7f7f7f_7f7f7f7f & (opp_pieces << 7);
+                for from in iter_one_squares(froms & 0xffffffff_ffff00ff) {
+                    let to = Square(from.0 - 7);
+                    result.push(Move { from, to, promotion: None });
+                }
+                for from in iter_one_squares(froms & 0x00000000_0000ff00) {
+                    let to = Square(from.0 - 7);
+                    for &promotion in crate::moves::PROMOTION_TARGETS {
+                        result.push(Move { from, to, promotion });
+                    }
+                }
+
+                if let Some(ep) = self.board.en_passant_square {
+                    let bit = 1u64 << ep.0;
+                    let froms = my_pieces & self.obs.pawns & (
+                        (bit & 0xfefefefefefefefe) << 7 |
+                        (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                    for from in iter_one_squares(froms) {
+                        result.push(Move { from, to: ep, promotion: None });
+                    }
+                }
+            }
+        }
+
+        // https://www.chessprogramming.org/Blockers_and_Beyond
+        for from in iter_one_squares(my_pieces & !self.obs.pawns) {
+            let (mut ts, mut b) = match self.board.get_piece(from).unwrap().kind {
+                PieceKind::Pawn => unreachable!(),
+                PieceKind::Knight => (KNIGHT_ATTACKS[from.0 as usize], 0),
+                PieceKind::King => (KING_ATTACKS[from.0 as usize], 0),
+                PieceKind::Bishop => (
+                    BISHOP_ATTACKS[from.0 as usize],
+                    BISHOP_BLOCKERS_AND_BEYOND[from.0 as usize]),
+                PieceKind::Rook => (
+                    ROOK_ATTACKS[from.0 as usize],
+                    ROOK_BLOCKERS_AND_BEYOND[from.0 as usize]),
+                PieceKind::Queen => (
+                    BISHOP_ATTACKS[from.0 as usize] | ROOK_ATTACKS[from.0 as usize],
+                    QUEEN_BLOCKERS_AND_BEYOND[from.0 as usize]),
+            };
+            ts &= !my_pieces;
+            b &= occ;
+            while b != 0 {
+                let sq = (b & b.wrapping_neg()).trailing_zeros();
+                b &= b - 1;
+                let behind = BEHIND[from.0 as usize * 64 + sq as usize];
+                ts &= !behind;
+                b &= !behind;
+            }
+            for to in iter_one_squares(ts) {
+                result.push(Move { from, to, promotion: None });
+            }
+        }
+
+        match color {
+            Color::White => {
+                if self.board.flags.contains(BoardFlags::WHITE_CAN_OO) &&
+                   occ & 0b0110_0000 == 0{
+                    result.push(Move { from: Square(4), to: Square(6), promotion: None });
+                }
+                if self.board.flags.contains(BoardFlags::WHITE_CAN_OOO) &&
+                   occ & 0b0000_1110 == 0 {
+                    result.push(Move { from: Square(4), to: Square(2), promotion: None });
+                }
+            }
+            Color::Black => {
+                if self.board.flags.contains(BoardFlags::BLACK_CAN_OO) &&
+                   occ & (0b0110_0000 << 56) == 0{
+                    result.push(Move { from: Square(56 + 4), to: Square(56 + 6), promotion: None });
+                }
+                if self.board.flags.contains(BoardFlags::BLACK_CAN_OOO) &&
+                   occ & (0b0000_1110 << 56) == 0 {
+                    result.push(Move { from: Square(56 + 4), to: Square(56 + 2), promotion: None });
+                }
+            }
+        }
+
+        result
     }
 }

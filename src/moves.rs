@@ -8,7 +8,7 @@ const PROMOTION_TARGETS_WITH_NONE: &[Option<PieceKind>] = &[
     None,
 ];
 
-const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
+pub const PROMOTION_TARGETS: &[Option<PieceKind>] = &[
     Some(PieceKind::Knight),
     Some(PieceKind::Bishop),
     Some(PieceKind::Rook),
