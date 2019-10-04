@@ -40,6 +40,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         assert_eq!(all_moves, all_moves_naive);
         let big_state = rbc::obs::BigState::new(state.clone());
         for sq in (0..64).map(Square) {
+            big_state.can_attack_to_for_testing(sq, state.side_to_play());
             if state.get_piece(sq).map_or(false, |p| p.color != state.side_to_play()) {
                 let all_attacks_to = state.all_attacks_to(sq, state.side_to_play());
                 for &am in &all_attacks_to {

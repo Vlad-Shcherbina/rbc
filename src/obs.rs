@@ -167,7 +167,7 @@ impl BigState {
 }
 
 impl BigState {
-    pub fn find_king(&mut self, color: Color) -> Option<Square> {
+    pub fn find_king(&self, color: Color) -> Option<Square> {
         let k = self.obs.kings & match color {
             Color::White => self.obs.white,
             Color::Black => self.obs.black,
@@ -219,16 +219,14 @@ impl BigState {
                     return Some(Move { from, to, promotion: None });
                 }
             }
-            Color::Black => {
-                if to.0 >= 8 {
-                    let bit = 1u64 << to.0;
-                    let froms = self.obs.black & self.obs.pawns & (
-                        (bit & 0xfefefefefefefefe) << 7 |
-                        (bit & 0x7f7f7f7f7f7f7f7f) << 9);
-                    if froms != 0 {
-                        let from = Square(froms.trailing_zeros() as i8);
-                        return Some(Move { from, to, promotion: None });
-                    }
+            Color::Black => if to.0 >= 8 {
+                let bit = 1u64 << to.0;
+                let froms = self.obs.black & self.obs.pawns & (
+                    (bit & 0xfefefefefefefefe) << 7 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                if froms != 0 {
+                    let from = Square(froms.trailing_zeros() as i8);
+                    return Some(Move { from, to, promotion: None });
                 }
             }
         }
@@ -277,16 +275,14 @@ impl BigState {
                     return Some(Move { from, to, promotion: Some(PieceKind::Queen) });
                 }
             }
-            Color::Black => {
-                if to.0 < 8 {
-                    let bit = 1u64 << to.0;
-                    let froms = self.obs.black & self.obs.pawns & (
-                        (bit & 0xfefefefefefefefe) << 7 |
-                        (bit & 0x7f7f7f7f7f7f7f7f) << 9);
-                    if froms != 0 {
-                        let from = Square(froms.trailing_zeros() as i8);
-                        return Some(Move { from, to, promotion: Some(PieceKind::Queen) });
-                    }
+            Color::Black => if to.0 < 8 {
+                let bit = 1u64 << to.0;
+                let froms = self.obs.black & self.obs.pawns & (
+                    (bit & 0xfefefefefefefefe) << 7 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                if froms != 0 {
+                    let from = Square(froms.trailing_zeros() as i8);
+                    return Some(Move { from, to, promotion: Some(PieceKind::Queen) });
                 }
             }
         }
@@ -298,5 +294,63 @@ impl BigState {
         }
 
         None
+    }
+
+    pub fn can_attack_to_for_testing(&self, to: Square, color: Color) -> bool {
+        let res = self.can_attack_to(to, color);
+        assert_eq!(res, self.cheapest_attack_to(to, color).is_some());
+        res
+    }
+
+    #[inline(never)]
+    pub fn can_attack_to(&self, to: Square, color: Color) -> bool {
+        match color {
+            Color::White => {
+                let bit = 1u64 << to.0;
+                let froms = self.obs.white & self.obs.pawns & (
+                    (bit & 0xfefefefefefefefe) >> 9 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+                if froms != 0 {
+                    return true;
+                }
+            }
+            Color::Black => {
+                let bit = 1u64 << to.0;
+                let froms = self.obs.black & self.obs.pawns & (
+                    (bit & 0xfefefefefefefefe) << 7 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                if froms != 0 {
+                    return true;
+                }
+            }
+        }
+
+        let my_pieces = match color {
+            Color::White => self.obs.white,
+            Color::Black => self.obs.black,
+        };
+        use crate::bitboard::*;
+        let knights = my_pieces & self.obs.knights & KNIGHT_ATTACKS[to.0 as usize];
+        if knights != 0 {
+            return true;
+        }
+
+        let occ = self.obs.white | self.obs.black;
+
+        let sliding_attackers = my_pieces & (
+            (self.obs.bishops | self.obs.queens) & BISHOP_ATTACKS[to.0 as usize] |
+            (self.obs.rooks | self.obs.queens) & ROOK_ATTACKS[to.0 as usize]);
+        for from in iter_one_positions(sliding_attackers) {
+            if occ & IN_BETWEEN[to.0 as usize * 64 + from as usize] == 0 {
+                return true;
+            }
+        }
+
+        let kings = my_pieces & self.obs.kings & KING_ATTACKS[to.0 as usize];
+        if kings != 0 {
+            return true;
+        }
+
+        false
     }
 }

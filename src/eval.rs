@@ -153,14 +153,14 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         None => return (10000 - ctx.ply as i32).max(alpha).min(beta),
         Some(sq) => sq,
     };
-    if let Some(ka) = ctx.state.cheapest_attack_to(opp_king, color) {
-        ctx.pvs[ctx.ply].push(ka);
+    if ctx.state.can_attack_to(opp_king, color) {
+        ctx.pvs[ctx.ply].push(ctx.state.cheapest_attack_to(opp_king, color).unwrap());
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
     }
 
     let mut all_moves = ctx.state.board.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
-    if depth == 0 && ctx.state.cheapest_attack_to(king, color.opposite()).is_none() {
+    if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
         let static_val = if ctx.expensive_eval {
             standing_pat(&ctx.state, color, &all_moves)
         } else {
