@@ -76,6 +76,23 @@ fn test_in_between() {
     dbg!(render_bb(in_between(0, 36).unwrap()));
 }
 
+fn attacks_by_pred(pred: &dyn Fn(i8, i8) -> bool) -> [u64; 64] {
+    let mut res = [0; 64];
+    for from in 0..64i8 {
+        for to in 0..64i8 {
+            if from == to {
+                continue;
+            }
+            let dr = from / 8 - to / 8;
+            let df = from % 8 - to % 8;
+            if pred(dr, df) {
+                res[from as usize] |= 1 << to;
+            }
+        }
+    }
+    res
+}
+
 lazy_static::lazy_static! {
     pub static ref IN_BETWEEN: [u64; 64 * 64] = {
         let mut res = [0; 64 * 64];
@@ -89,73 +106,17 @@ lazy_static::lazy_static! {
         res
     };
 
-    pub static ref KNIGHT_ATTACKS: [u64; 64] = {
-        let mut res = [0; 64];
-        for from in 0..64i8 {
-            let rank = from / 8;
-            let file = from % 8;
-            for &(dr, df) in &crate::moves::KNIGHT_DELTAS {
-                let r = rank + dr;
-                let f = file + df;
-                if 0 <= r && r < 8 && 0 <= f && f < 8 {
-                    let to = r * 8 + f;
-                    res[from as usize] |= 1 << to;
-                }
-            }
-        }
-        res
-    };
+    pub static ref KNIGHT_ATTACKS: [u64; 64] =
+        attacks_by_pred(&|dr, df| dr.abs().min(df.abs()) == 1 && dr.abs().max(df.abs()) == 2);
 
-    pub static ref BISHOP_ATTACKS: [u64; 64] = {
-        let mut res = [0; 64];
-        for from in 0..64i8 {
-            for to in 0..64i8 {
-                if from == to {
-                    continue;
-                }
-                let dr = from / 8 - to / 8;
-                let df = from % 8 - to % 8;
-                if dr.abs() == df.abs() {
-                    res[from as usize] |= 1 << to;
-                }
-            }
-        }
-        res
-    };
+    pub static ref BISHOP_ATTACKS: [u64; 64] =
+        attacks_by_pred(&|dr, df| dr.abs() == df.abs());
 
-    pub static ref ROOK_ATTACKS: [u64; 64] = {
-        let mut res = [0; 64];
-        for from in 0..64i8 {
-            for to in 0..64i8 {
-                if from == to {
-                    continue;
-                }
-                let dr = from / 8 - to / 8;
-                let df = from % 8 - to % 8;
-                if dr == 0 || df == 0 {
-                    res[from as usize] |= 1 << to;
-                }
-            }
-        }
-        res
-    };
+    pub static ref ROOK_ATTACKS: [u64; 64] =
+        attacks_by_pred(&|dr, df| dr == 0 || df == 0);
 
-    pub static ref KING_ATTACKS: [u64; 64] = {
-        let mut res = [0; 64];
-        for from in 0..64i8 {
-            for to in 0..64i8 {
-                if from == to {
-                    continue;
-                }
-                let dr = from / 8 - to / 8;
-                let df = from % 8 - to % 8;
-                if dr.abs() <= 1 && df.abs() <= 1 {
-                    res[from as usize] |= 1 << to;
-                }
-            }
-        }
-        res
-    };
+    pub static ref KING_ATTACKS: [u64; 64] =
+        attacks_by_pred(&|dr, df| dr.abs() <= 1 && df.abs() <= 1);
 }
 
 #[cfg(test)]
