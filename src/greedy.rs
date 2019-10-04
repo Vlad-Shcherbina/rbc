@@ -315,6 +315,7 @@ impl Player for GreedyPlayer {
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
+        append_to_summary!(html, "<td class=numcol>{:.1}</td>", sol.game_value);
         html.flush().unwrap();
         candidates.into_iter()
             .map(Option::Some)
