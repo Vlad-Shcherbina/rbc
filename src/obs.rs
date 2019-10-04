@@ -1,4 +1,4 @@
-use crate::game::{Square, Color, Piece, Move, BoardState};
+use crate::game::{Square, Color, PieceKind, Piece, Move, BoardState};
 
 pub trait Obs {
     fn replace_piece(&mut self, sq: Square, old: Option<Piece>, new: Option<Piece>);
@@ -20,6 +20,14 @@ pub struct StateObs {
     undo_states: Vec<UndoState>,
     edits: Vec<(Square, Option<Piece>, Option<Piece>)>,
     pub material: i32,
+    pub white: u64,
+    pub black: u64,
+    pub pawns: u64,
+    pub knights: u64,
+    pub bishops: u64,
+    pub rooks: u64,
+    pub queens: u64,
+    pub kings: u64,
 }
 
 impl StateObs {
@@ -28,6 +36,14 @@ impl StateObs {
             undo_states: Vec::new(),
             edits: Vec::new(),
             material: 0,
+            white: 0,
+            black: 0,
+            pawns: 0,
+            knights: 0,
+            bishops: 0,
+            rooks: 0,
+            queens: 0,
+            kings: 0,
         };
         for sq in (0..64).map(Square) {
             let p = b.get_piece(sq);
@@ -38,8 +54,21 @@ impl StateObs {
         obs
     }
 
-    fn replace_piece_raw(&mut self, _sq: Square, old: Option<Piece>, new: Option<Piece>) {
+    fn replace_piece_raw(&mut self, sq: Square, old: Option<Piece>, new: Option<Piece>) {
+        let bit = 1u64 << sq.0;
         if let Some(p) = old {
+            match p.color {
+                Color::White => self.white ^= bit,
+                Color::Black => self.black ^= bit,
+            }
+            match p.kind {
+                PieceKind::Pawn => self.pawns ^= bit,
+                PieceKind::Knight => self.knights ^= bit,
+                PieceKind::Bishop => self.bishops ^= bit,
+                PieceKind::Rook => self.rooks ^= bit,
+                PieceKind::Queen => self.queens ^= bit,
+                PieceKind::King => self.kings ^= bit,
+            }
             match p.color {
                 Color::White =>
                     self.material -= crate::eval::material_value(p.kind),
@@ -48,6 +77,18 @@ impl StateObs {
             }
         }
         if let Some(p) = new {
+            match p.color {
+                Color::White => self.white ^= bit,
+                Color::Black => self.black ^= bit,
+            }
+            match p.kind {
+                PieceKind::Pawn => self.pawns ^= bit,
+                PieceKind::Knight => self.knights ^= bit,
+                PieceKind::Bishop => self.bishops ^= bit,
+                PieceKind::Rook => self.rooks ^= bit,
+                PieceKind::Queen => self.queens ^= bit,
+                PieceKind::King => self.kings ^= bit,
+            }
             match p.color {
                 Color::White =>
                     self.material += crate::eval::material_value(p.kind),
@@ -122,5 +163,19 @@ impl BigState {
 
     pub fn make_move(&mut self, m: Option<Move>) -> Option<Square> {
         self.board.make_move(m, &mut self.obs)
+    }
+}
+
+impl BigState {
+    pub fn find_king(&mut self, color: Color) -> Option<Square> {
+        let k = self.obs.kings & match color {
+            Color::White => self.obs.white,
+            Color::Black => self.obs.black,
+        };
+        if k == 0 {
+            None
+        } else {
+            Some(Square(k.trailing_zeros() as i8))
+        }
     }
 }

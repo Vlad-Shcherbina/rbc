@@ -150,17 +150,15 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     ctx.pvs[ctx.ply].clear();
 
     let color = ctx.state.board.side_to_play();
-    let king = ctx.state.board.find_king(color);
-    if king.is_none() {
-        return (-10000 + ctx.ply as i32).max(alpha).min(beta);
-    }
-    let king = king.unwrap();
-
-    let opp_king = ctx.state.board.find_king(color.opposite());
-    if opp_king.is_none() {
-        return (10000 - ctx.ply as i32).max(alpha).min(beta);
-    }
-    let king_attacks = ctx.state.board.all_attacks_to(opp_king.unwrap(), color);
+    let king = match ctx.state.find_king(color) {
+        None => return (-10000 + ctx.ply as i32).max(alpha).min(beta),
+        Some(sq) => sq,
+    };
+    let opp_king = match ctx.state.find_king(color.opposite()) {
+        None => return (10000 - ctx.ply as i32).max(alpha).min(beta),
+        Some(sq) => sq,
+    };
+    let king_attacks = ctx.state.board.all_attacks_to(opp_king, color);
     if !king_attacks.is_empty() {
         ctx.pvs[ctx.ply].push(king_attacks[0]);
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
