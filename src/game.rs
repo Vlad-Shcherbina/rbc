@@ -1,10 +1,12 @@
+#[cfg(feature = "heavy")]
 use serde::{Serialize, Deserialize};
 
 pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-#[serde(from="i8", into="i8")]
+#[cfg_attr(feature = "heavy",
+    derive(Serialize, Deserialize),
+    serde(from="i8", into="i8"))]
 pub struct Square(pub i8);
 
 impl From<i8> for Square {
@@ -115,8 +117,9 @@ impl From<fen::PieceKind> for PieceKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-#[serde(from = "bool", into="bool")]
+#[cfg_attr(feature = "heavy",
+    derive(Serialize, Deserialize),
+    serde(from = "bool", into="bool"))]
 pub enum Color {
     White,
     Black,
@@ -141,8 +144,9 @@ impl From<fen::Color> for Color {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Deserialize)]
-#[serde(from = "crate::api::TypeValue")]
+#[cfg_attr(feature = "heavy",
+    derive(Deserialize),
+    serde(from = "crate::api::TypeValue"))]
 pub struct Piece {
     pub kind: PieceKind,
     pub color: Color,

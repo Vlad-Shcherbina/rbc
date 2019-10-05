@@ -6,18 +6,18 @@ edition = "2018"
 
 [dependencies]
 base64 = "*"
-minreq = { version = "1.4.1-alpha.0", features = ["https"] }
+minreq = { version = "1.4.1-alpha.0", features = ["https"], optional = true }
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 log = "*"
 env_logger = { version = "*", default-features = false, features = ["termcolor", "atty", "humantime"] }
 ctrlc = "*"
 fen = "*"
-rusqlite = { version = "*", features = ["bundled"] }
-zstd = { version = "*", default-features = false }
+rusqlite = { version = "*", features = ["bundled"], optional = true }
+zstd = { version = "*", default-features = false, optional = true }
 rayon = { version = "*", optional = true }
 rand = "*"
-pbr = "*"
+pbr = { version = "*", optional = true }
 chrono = "*"
 backtrace = "*"
 bitflags = "*"
@@ -30,7 +30,25 @@ lazy_static = "*"
 [patch.crates-io]
 minreq = { git = "https://github.com/neonmoe/minreq.git" }
 
+[features]
+heavy = ["rayon", "minreq", "pbr", "zstd", "rusqlite"]
+
 [[bin]]
 name = "download_games"
 path = "src/bin/download_games.rs"
-required-features = ["rayon"]
+required-features = ["heavy"]
+
+[[bin]]
+name = "historian"
+path = "src/bin/historian.rs"
+required-features = ["heavy"]
+
+[[bin]]
+name = "replayer"
+path = "src/bin/replayer.rs"
+required-features = ["heavy"]
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
+required-features = ["heavy"]
