@@ -111,9 +111,14 @@ fn standing_pat_material_only(state: &crate::obs::BigState, color: Color) -> i32
 pub struct Ctx {
     state: crate::obs::BigState,
     ply: usize,
+    leftmost: bool,
     pub pvs: Vec<Vec<Move>>,
+    pub suggested_pv: Vec<Move>,
     pub print: bool,
     pub expensive_eval: bool,
+    pub nodes: i64,
+    pub full_branch: i64,
+    pub q_branch: i64,
 }
 
 impl Ctx {
@@ -121,9 +126,14 @@ impl Ctx {
         Ctx {
             state: crate::obs::BigState::new(board),
             ply: 0,
+            leftmost: true,
             pvs: Vec::new(),
+            suggested_pv: Vec::new(),
             print: false,
             expensive_eval: false,
+            nodes: 0,
+            full_branch: 0,
+            q_branch: 0,
         }
     }
 }
@@ -143,6 +153,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         ctx.pvs.push(Vec::new());
     }
     ctx.pvs[ctx.ply].clear();
+    ctx.nodes += 1;
 
     let color = ctx.state.board.side_to_play();
     let king = match ctx.state.find_king(color) {
@@ -161,6 +172,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     let mut all_moves = ctx.state.all_moves();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
     if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
+        ctx.q_branch += 1;
         let static_val = if ctx.expensive_eval {
             standing_pat(&mut ctx.state, color, &all_moves)
         } else {
@@ -193,6 +205,13 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         }
         ranked_moves.sort_by_key(|&(_, rank)| -rank);
         all_moves = ranked_moves.into_iter().map(|(m, _)| m).collect();
+    } else {
+        ctx.full_branch += 1;
+    }
+    if ctx.leftmost && ctx.ply < ctx.suggested_pv.len() {
+        if let Some(i) = all_moves.iter().position(|&m| m == ctx.suggested_pv[ctx.ply]) {
+            all_moves.swap(0, i);
+        }
     }
     for m in all_moves {
         ctx.state.push();
@@ -201,6 +220,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         let t = -search((depth - 1).max(0), -beta, -alpha, ctx);
         ctx.ply -= 1;
         ctx.state.pop();
+        ctx.leftmost = false;
         if t > alpha {
             ctx.pvs[ctx.ply].clear();
             ctx.pvs[ctx.ply].push(m);
