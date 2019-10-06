@@ -524,4 +524,44 @@ impl BigState {
 
         result
     }
+
+    #[inline(never)]
+    pub fn mobility(&self, color: Color) -> i32 {
+        let my_pieces = match color {
+            Color::White => self.obs.white,
+            Color::Black => self.obs.black,
+        };
+        let occ = self.obs.white | self.obs.black;
+        use crate::bitboard::*;
+
+        let mut result = 0;
+        // https://www.chessprogramming.org/Blockers_and_Beyond
+        for from in iter_one_squares(my_pieces & !self.obs.pawns) {
+            let kind = self.board.get_piece(from).unwrap().kind;
+            let (mut ts, mut b) = match kind {
+                PieceKind::Pawn => unreachable!(),
+                PieceKind::Knight => (KNIGHT_ATTACKS[from.0 as usize], 0),
+                PieceKind::King => (KING_ATTACKS[from.0 as usize], 0),
+                PieceKind::Bishop => (
+                    BISHOP_ATTACKS[from.0 as usize],
+                    BISHOP_BLOCKERS_AND_BEYOND[from.0 as usize]),
+                PieceKind::Rook => (
+                    ROOK_ATTACKS[from.0 as usize],
+                    ROOK_BLOCKERS_AND_BEYOND[from.0 as usize]),
+                PieceKind::Queen => (
+                    BISHOP_ATTACKS[from.0 as usize] | ROOK_ATTACKS[from.0 as usize],
+                    QUEEN_BLOCKERS_AND_BEYOND[from.0 as usize]),
+            };
+            b &= occ;
+            while b != 0 {
+                let sq = (b & b.wrapping_neg()).trailing_zeros();
+                b &= b - 1;
+                let behind = BEHIND[from.0 as usize * 64 + sq as usize];
+                ts &= !behind;
+                b &= !behind;
+            }
+            result += ts.count_ones() as i32 * crate::eval::mobility_value(kind);
+        }
+        result
+    }
 }

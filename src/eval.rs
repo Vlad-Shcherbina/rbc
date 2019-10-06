@@ -72,7 +72,7 @@ fn test_see() {
                 material_value(PieceKind::Rook) - material_value(PieceKind::Knight));
 }
 
-fn mobility_value(kind: PieceKind) -> i32 {
+pub fn mobility_value(kind: PieceKind) -> i32 {
     match kind {
         PieceKind::Pawn => 0,
         PieceKind::Knight |
@@ -85,19 +85,8 @@ fn mobility_value(kind: PieceKind) -> i32 {
 
 // https://www.chessprogramming.org/Quiescence_Search#Standing_Pat
 #[inline(never)]
-fn standing_pat(state: &mut crate::obs::BigState, color: Color, all_moves: &[Move]) -> i32 {
-    let mut static_val = 0;
-    for &m in all_moves {
-        static_val += mobility_value(state.board.get_piece(m.from).unwrap().kind);
-    }
-    state.push();
-    state.make_move(None);
-    for m in state.all_moves() {
-        static_val -= mobility_value(state.board.get_piece(m.from).unwrap().kind);
-    }
-    state.pop();
-    static_val += standing_pat_material_only(state, color);
-    static_val
+fn standing_pat(state: &mut crate::obs::BigState, color: Color) -> i32 {
+    standing_pat_material_only(state, color) + state.mobility(color) - state.mobility(color.opposite())
 }
 
 #[inline(never)]
@@ -174,7 +163,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
         ctx.q_branch += 1;
         let static_val = if ctx.expensive_eval {
-            standing_pat(&mut ctx.state, color, &all_moves)
+            standing_pat(&mut ctx.state, color)
         } else {
             standing_pat_material_only(&ctx.state, color)
         };
