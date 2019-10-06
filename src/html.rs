@@ -128,42 +128,46 @@ impl Infoset {
 }
 
 pub fn moves_to_html(b: &BoardState, moves: impl Iterator<Item=Option<Move>>) -> String {
-    let mut result = Vec::<String>::new();
+    let mut result = String::new();
     let mut b = b.clone();
+    let mut first = true;
     for m in moves {
+        if !first {
+            result.push_str("; ");
+        }
+        first = false;
         let mut b2 = b.clone();
         let cap = b2.make_move(m, &mut crate::obs::NullObs);
         if let Some(m) = m {
-            let mut s = format!(
+            result.push_str(&format!(
                 r#"<span style="white-space:nowrap">{}<span class=negspace></span>{:?}"#,
-                b.get_piece(m.from).unwrap().to_emoji(), m.from);
+                b.get_piece(m.from).unwrap().to_emoji(), m.from));
             if let Some(cap) = cap {
-                s.push_str("&thinsp;x");
-                s.push(b.get_piece(cap).unwrap().to_emoji());
-                s.push_str("<span class=negspace></span>");
-                s.push_str(&m.to.to_san());
+                result.push_str("&thinsp;x");
+                result.push(b.get_piece(cap).unwrap().to_emoji());
+                result.push_str("<span class=negspace></span>");
+                result.push_str(&m.to.to_san());
             } else {
-                s.push_str(&m.to.to_san());
+                result.push_str(&m.to.to_san());
             }
             if let Some(p) = m.promotion {
                 let p = Piece {
                     color: b.side_to_play(),
                     kind: p,
                 };
-                s.push_str("<span class=negspace></span>");
-                s.push(p.to_emoji());
+                result.push_str("<span class=negspace></span>");
+                result.push(p.to_emoji());
             }
             if let Some(king) = b2.find_king(b2.side_to_play()) {
                 if !b2.all_attacks_to(king, b.side_to_play()).is_empty() {
-                    s.push('+');
+                    result.push('+');
                 }
             }
-            s.push_str("</span>");
-            result.push(s);
+            result.push_str("</span>");
         } else {
-            result.push("pass".to_string());
+            result.push_str("pass");
         }
         b = b2;
     }
-    result.join("; ")
+    result
 }
