@@ -66,21 +66,7 @@ fn sr_value(moves: &[Move], states: &[BoardState], mut alpha: i32, beta: i32) ->
 
 fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> HashMap<Square, i32> {
     let mut result = HashMap::new();
-    let max_possible_states = 2000;
-    let mut possible_states = Vec::new();
-    if infoset.possible_states.len() <= max_possible_states {
-        possible_states = infoset.possible_states.clone();
-    } else {
-        let p = max_possible_states as f64 / infoset.possible_states.len() as f64;
-        for s in &infoset.possible_states {
-            if rng.gen_bool(p) {
-                possible_states.push(s.clone());
-            }
-        }
-        writeln!(html, "<p>sparsening to {}</p>", possible_states.len()).unwrap();
-        info!("sparsening to {}", possible_states.len());
-    }
-
+    let possible_states = sparsen(2000, rng, infoset.possible_states.iter().cloned());
     let moves = infoset.fog_state.all_sensible_requested_moves();
     write!(html, "<table>").unwrap();
     for rank in (1..7).rev() {
@@ -107,6 +93,22 @@ fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> Hash
         write!(html, "</tr>").unwrap();
     }
     writeln!(html, "</table>").unwrap();
+    result
+}
+
+fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item=T>) -> Vec<T> {
+    if it.len() <= max_size {
+        return it.collect();
+    }
+    let orig_size = it.len();
+    let p = max_size as f64 / it.len() as f64;
+    let mut result = Vec::with_capacity(max_size * 11 / 10);
+    for x in it {
+        if rng.gen_bool(p) {
+            result.push(x);
+        }
+    }
+    info!("sparsen {} to {}", orig_size, result.len());
     result
 }
 
@@ -191,20 +193,8 @@ impl Player for GreedyPlayer {
         let timer = std::time::Instant::now();
         info!("choose_move (move {})", self.move_number);
 
-        let max_states = 2000;
-        let states: Vec<&BoardState> = if infoset.possible_states.len() <= max_states {
-            infoset.possible_states.iter().collect()
-        } else {
-            let p = max_states as f64 / infoset.possible_states.len() as f64;
-            let res: Vec<_> = infoset.possible_states.iter()
-                .filter(|_| self.rng.gen_bool(p))
-                .collect();
-            writeln!(html, "<p>sparsening to {}</p>", res.len()).unwrap();
-            info!("sparsening to {}", res.len());
-            res
-        };
-
         let candidates = infoset.fog_state.all_sensible_requested_moves();
+        let states: Vec<&BoardState> = sparsen(2000, &mut self.rng, infoset.possible_states.iter());
         let m = candidates.len();
         let n = states.len();
         let mut payoff = vec![0f32; m * n];
