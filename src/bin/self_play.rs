@@ -83,19 +83,27 @@ fn main() {
     let ai2 = rbc::greedy::GreedyAi { experiment: false };
 
     let mut rng = StdRng::seed_from_u64(424242);
-    let mut html = std::io::sink();
 
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 2 && args[1] == "bench" {
+        let mut html_white = std::io::BufWriter::new(
+            std::fs::File::create("logs/self_play_white.html").unwrap());
+        writeln!(html_white, "{}", rbc::html::PREAMBLE).unwrap();
+        let mut html_black = std::io::sink();
+
         let timer = std::time::Instant::now();
         let mut game = GameState::new(&ai1, &ai2, 424242);
         while !game.is_over() {
             dbg!(game.move_number);
-            let sense_distr = game.phase1(&mut html);
+            let html: &mut dyn Write = match game.board.side_to_play() {
+                Color::White => &mut html_white,
+                Color::Black => &mut html_black,
+            };
+            let sense_distr = game.phase1(html);
             let sense = *distr::draw(&sense_distr, &mut rng);
-            let requested_distr = game.phase2(sense, &mut html);
+            let requested_distr = game.phase2(sense, html);
             let requested = *distr::draw(&requested_distr, &mut rng);
-            game.phase3(requested, &mut html);
+            game.phase3(requested, html);
         }
         println!("{:?} won", game.board.winner().unwrap());
         println!("{:#?}", game.board.render());
@@ -105,6 +113,8 @@ fn main() {
         println!("it took {:.3}s", timer.elapsed().as_secs_f64());
         return;
     }
+
+    let mut html = std::io::sink();
 
     use std::collections::HashMap;
     let mut outcome_cnt: HashMap<(Color, Color), i32> = HashMap::new();

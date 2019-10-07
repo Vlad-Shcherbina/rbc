@@ -111,9 +111,7 @@ fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> Hash
 }
 
 impl Player for GreedyPlayer {
-    fn begin(&mut self, html: &mut dyn Write) {
-        append_to_summary!(html, "<table>");
-    }
+    fn begin(&mut self, _html: &mut dyn Write) {}
 
     fn handle_opponent_move(&mut self,
         capture_square: Option<Square>,

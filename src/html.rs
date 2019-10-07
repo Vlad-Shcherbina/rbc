@@ -7,7 +7,7 @@ pub const PREAMBLE: &str = r#"
 <meta charset="utf-8">
 <link href="../static/style.css" rel="stylesheet">
 <script>
-let summary = "";
+let summary = "<table>";
 </script>
 <div id="summary"></div>
 "#;
