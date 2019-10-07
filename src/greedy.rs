@@ -122,13 +122,14 @@ impl Player for GreedyPlayer {
     ) {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         info!("opp capture: {:?}", capture_square);
-        info!("{} possible states after capture", infoset.possible_states.len());
+        info!("{} possible states", infoset.possible_states.len());
         if let Some(cs) = capture_square {
             writeln!(html, "<p>Opponent captured <b>{:?}</b>.</p>", cs).unwrap();
         }
     }
 
     fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)> {
+        info!("choose_sense (move {})", self.move_number);
         writeln!(html, r#"<h3 id="move{}">Move {}</h3>"#, self.move_number, self.move_number).unwrap();
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
@@ -138,7 +139,6 @@ impl Player for GreedyPlayer {
             self.move_number, self.move_number,
             infoset.possible_states.len());
 
-        info!("{:#?}", infoset.render());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
         html.flush().unwrap();
         let timer = std::time::Instant::now();
@@ -159,7 +159,6 @@ impl Player for GreedyPlayer {
                 write!(html, "<td class=numcol>{:.2}</td>", e).unwrap();
                 hz.push((sq, e + iv[&sq] as f64 * iv_weight));
             }
-            info!("entropy: {}", line);
             write!(html, "</tr>").unwrap();
         }
         writeln!(html, "</table>").unwrap();
@@ -182,7 +181,7 @@ impl Player for GreedyPlayer {
     ) {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         info!("sense {:?} -> {:?}", sense, sense_result);
-        info!("{:#?}", infoset.render());
+        info!("{} possible states", infoset.possible_states.len());
         write!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
         append_to_summary!(html, "<td class=numcol>{}</td>", infoset.possible_states.len());
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
@@ -192,6 +191,7 @@ impl Player for GreedyPlayer {
     fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
+        info!("choose_move (move {})", self.move_number);
 
         let max_states = 2000;
         let states: Vec<&BoardState> = if infoset.possible_states.len() <= max_states {
@@ -253,7 +253,6 @@ impl Player for GreedyPlayer {
                 });
                 payoff[i * n + j] = e.value + e.bonus;
             }
-            info!("{} rows left", m - 1 - i);
         }
         writeln!(html, "<p>search took {:>5.1}s</p>", search_timer.elapsed().as_secs_f64()).unwrap();
         writeln!(html, "<p>{} matrix cells, {} unique</p>", n * m, eval_cache.len()).unwrap();
@@ -264,16 +263,9 @@ impl Player for GreedyPlayer {
         let mut jx: Vec<usize> = (0..n).collect();
         jx.sort_by(|&j1, &j2| sol.strategy2[j2].partial_cmp(&sol.strategy2[j1]).unwrap());
         jx = jx.into_iter().take(6).take_while(|&j| sol.strategy2[j] > 0.01).collect();
-        for &j in &jx {
-            info!("dangerous: {} {:#?}", sol.strategy2[j], states[j].render());
-        }
-        info!("game value: {}", sol.game_value);
         let mut ix: Vec<usize> = (0..m).collect();
         ix.sort_by(|&j1, &j2| sol.strategy1[j2].partial_cmp(&sol.strategy1[j1]).unwrap());
         ix = ix.into_iter().take(10).take_while(|&i| sol.strategy1[i] > 0.01).collect();
-        for &i in &ix {
-            info!("good move: {} {}", candidates[i].to_uci(), sol.strategy1[i]);
-        }
 
         writeln!(html, "<table>").unwrap();
         writeln!(html, "<tr>").unwrap();
@@ -334,7 +326,6 @@ impl Player for GreedyPlayer {
         info!("taken move :    {:?}", taken);
         info!("capture square: {:?}", capture_square);
         info!("{} possible states after my move", infoset.possible_states.len());
-        info!("{:#?}", infoset.fog_state.render());
         writeln!(html, "<p>requested: {:?}</p>", requested).unwrap();
         writeln!(html, "<p>taken: {:?}.</p>", taken).unwrap();
         if let Some(cs) = capture_square {
