@@ -56,21 +56,9 @@ impl Infoset {
 
     #[inline(never)]
     pub fn sense_entropy(&self, sense: Square) -> f64 {
-        let rank = sense.0 / 8;
-        let file = sense.0 % 8;
-        assert!(1 <= rank && rank < 7);
-        assert!(1 <= file && file < 7);
         let mut cnt = fnv::FnvHashMap::<u32, i32>::default();
         for s in &self.possible_states {
-            let mut fingerprint = 0u32;
-            for r in rank-1..=rank+1 {
-                for f in file-1..=file+1 {
-                    let sq = Square(r * 8 + f);
-                    fingerprint *= 7;
-                    fingerprint += s.get_piece(sq).map_or(0, |p| p.kind.to_int());
-                }
-            }
-            *cnt.entry(fingerprint).or_default() += 1;
+            *cnt.entry(s.sense_fingerprint(sense)).or_default() += 1;
         }
 
         let mut s = 0.0;

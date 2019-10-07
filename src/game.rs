@@ -375,6 +375,20 @@ impl BoardState {
         result
     }
 
+    pub fn sense_fingerprint(&self, p: Square) -> u32 {
+        let mut result = 0;
+        let r = p.0 / 8;
+        let f = p.0 % 8;
+        for r in (0.max(r - 1)..=7.min(r + 1)).rev() {
+            for f in 0.max(f - 1)..=7.min(f + 1) {
+                let q = Square(r * 8 + f);
+                result *= 7;
+                result += self.get_piece(q).map_or(0, |p| p.kind.to_int());
+            }
+        }
+        result
+    }
+
     #[allow(dead_code)]
     pub fn find_king_naive(&self, color: Color) -> Option<Square> {
         (0..64).map(Square)
