@@ -76,8 +76,10 @@ impl GameState {
 }
 
 fn main() {
-    // let logger = rbc::logger::init_changeable_logger(rbc::logger::SimpleLogger);
-    // log::set_max_level(log::LevelFilter::Info);
+    rbc::logger::init_changeable_logger(
+        rbc::logger::WriteLogger::new(
+            std::fs::File::create("logs/self_play.info.txt").unwrap()));
+    log::set_max_level(log::LevelFilter::Info);
 
     let ai1 = rbc::greedy::GreedyAi { experiment: true };
     let ai2 = rbc::greedy::GreedyAi { experiment: false };
