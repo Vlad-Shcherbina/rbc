@@ -64,35 +64,26 @@ fn sr_value(moves: &[Move], states: &[BoardState], mut alpha: i32, beta: i32) ->
     alpha
 }
 
-fn info_value(infoset: &Infoset, html: &mut dyn Write, rng: &mut StdRng) -> HashMap<Square, i32> {
+fn info_value(squares: &[Square], fog_state: &BoardState, possible_states: &[BoardState]) -> HashMap<Square, i32> {
     let mut result = HashMap::new();
-    let possible_states = sparsen(2000, rng, infoset.possible_states.iter().cloned());
-    let moves = infoset.fog_state.all_sensible_requested_moves();
-    write!(html, "<table>").unwrap();
-    for rank in (1..7).rev() {
-        write!(html, "<tr>").unwrap();
-        for file in 1..7 {
-            let sq = Square(rank * 8 + file);
-            let mut state_by_sr = fnv::FnvHashMap::<_, Vec<BoardState>>::default();
-            for s in &possible_states {
-                state_by_sr.entry(s.sense(sq)).or_default().push(s.clone());
-            }
-            let alpha = -10000;
-            let mut beta = 10000;
-            for (_sr, states) in state_by_sr.iter() {
-                let t = sr_value(&moves, states, alpha, beta);
-                if t <= alpha {
-                    beta = alpha;
-                    break;
-                }
-                beta = beta.min(t);
-            }
-            write!(html, "<td class=numcol>{}</td>", beta).unwrap();
-            result.insert(sq, beta);
+    let moves = fog_state.all_sensible_requested_moves();
+    for &sq in squares {
+        let mut state_by_sr = fnv::FnvHashMap::<_, Vec<BoardState>>::default();
+        for s in possible_states {
+            state_by_sr.entry(s.sense(sq)).or_default().push(s.clone());
         }
-        write!(html, "</tr>").unwrap();
+        let alpha = -10000;
+        let mut beta = 10000;
+        for (_sr, states) in state_by_sr.iter() {
+            let t = sr_value(&moves, states, alpha, beta);
+            if t <= alpha {
+                beta = alpha;
+                break;
+            }
+            beta = beta.min(t);
+        }
+        result.insert(sq, beta);
     }
-    writeln!(html, "</table>").unwrap();
     result
 }
 
@@ -110,6 +101,18 @@ fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item
     }
     info!("sparsen {} to {}", orig_size, result.len());
     result
+}
+
+fn partition_dominates(states_by_sr: &HashMap<u32, Vec<usize>>, sr_by_state: &[u32]) -> bool {
+    for states in states_by_sr.values() {
+        let sr = sr_by_state[states[0]];
+        for &s in &states[1..] {
+            if sr_by_state[s] != sr {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 impl Player for GreedyPlayer {
@@ -143,25 +146,76 @@ impl Player for GreedyPlayer {
         html.flush().unwrap();
         let timer = std::time::Instant::now();
 
-        let iv = info_value(infoset, html, &mut self.rng);
+        let mut square_and_entropy = Vec::new();
+        for rank in 1..7 {
+            for file in 1..7 {
+                let sq = Square(rank * 8 + file);
+                square_and_entropy.push((sq, infoset.sense_entropy(sq)))
+            }
+        }
+        square_and_entropy.sort_by(|(_, e1), (_, e2)| e2.partial_cmp(e1).unwrap());
+        info!("square_and_entropy = {:?}", square_and_entropy);
+
+        let possible_states = sparsen(2000, &mut self.rng, infoset.possible_states.iter().cloned());
+
+        struct SenseEntry {
+            sq: Square,
+            entropy: f64,
+            states_by_sr: HashMap<u32, Vec<usize>>,
+        }
+        let mut sense_entries = Vec::<SenseEntry>::new();
+        for (sq, entropy) in square_and_entropy {
+            let sr_by_state: Vec<u32> = possible_states.iter().map(|s| s.sense_fingerprint(sq)).collect();
+            if sense_entries
+                .iter()
+                .any(|prev| partition_dominates(&prev.states_by_sr, &sr_by_state)) {
+                continue;
+            }
+            let mut states_by_sr = HashMap::<u32, Vec<usize>>::new();
+            for (i, &sr) in sr_by_state.iter().enumerate() {
+                states_by_sr.entry(sr).or_default().push(i);
+            }
+            sense_entries.push(SenseEntry {
+                sq,
+                entropy,
+                states_by_sr,
+            });
+        }
+
+        let sense_entries: HashMap<Square, SenseEntry> =
+            sense_entries.into_iter().map(|se| (se.sq, se)).collect();
+        let squares: Vec<Square> = sense_entries.keys().cloned().collect();
+        info!("{} sensible sense squares", squares.len());
+
+        let iv = info_value(&squares, &infoset.fog_state, &possible_states);
+
+        write!(html, "<table>").unwrap();
+        for rank in (1..7).rev() {
+            write!(html, "<tr>").unwrap();
+            write!(html, "<td>{}</td>", rank + 1).unwrap();
+            for file in 1..7 {
+                let sq = Square(rank * 8 + file);
+                if let Some(se) = sense_entries.get(&sq) {
+                    write!(html, "<td class=numcol><div>{:.2}</div><div>{}</div></td>", se.entropy, iv[&sq]).unwrap();
+                } else {
+                    write!(html, "<td></td>").unwrap();
+                }
+            }
+            write!(html, "</tr>").unwrap();
+        }
+        for file in " bcdefg".chars() {
+            write!(html, "<td class=numcol>{}</td>", file).unwrap();
+        }
+        writeln!(html, "</table>").unwrap();
+
         let iv_weight = (2.0 - infoset.possible_states.len() as f64 / 50_000.0).max(0.0).min(1.0) * 2e-3;
         writeln!(html, "<p>weight: {}</p>", iv_weight).unwrap();
 
         let mut hz = Vec::new();
-        write!(html, "<table>").unwrap();
-        for rank in (1..7).rev() {
-            write!(html, "<tr>").unwrap();
-            let mut line = String::new();
-            for file in 1..7 {
-                let sq = Square(rank * 8 + file);
-                let e = infoset.sense_entropy(sq);
-                line.push_str(&format!("{:>7.2}", e));
-                write!(html, "<td class=numcol>{:.2}</td>", e).unwrap();
-                hz.push((sq, e + iv[&sq] as f64 * iv_weight));
-            }
-            write!(html, "</tr>").unwrap();
+        for sq in squares {
+            hz.push((sq, sense_entries[&sq].entropy + iv[&sq] as f64 * iv_weight));
         }
-        writeln!(html, "</table>").unwrap();
+
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
         append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
         html.flush().unwrap();
