@@ -290,8 +290,24 @@ impl BoardState {
     }
 
     pub fn render(&self) -> Vec<String> {
-        let mut result = Vec::new();
-        result.push(format!("{:?} to move", self.side_to_play()));
+        let mut header = String::new();
+        if let Some(ep) = self.en_passant_square {
+            header.push_str(&format!("ep={:?} ", ep));
+        }
+        if self.flags.contains(BoardFlags::WHITE_CAN_OO) {
+            header.push('K');
+        }
+        if self.flags.contains(BoardFlags::WHITE_CAN_OOO) {
+            header.push('Q');
+        }
+        if self.flags.contains(BoardFlags::BLACK_CAN_OO) {
+            header.push('k');
+        }
+        if self.flags.contains(BoardFlags::BLACK_CAN_OOO) {
+            header.push('q');
+        }
+        header.push_str(&format!("  {:?} to move", self.side_to_play()));
+        let mut result = vec![header];
         for rank in (0..8).rev() {
             let mut line = (rank + 1).to_string();
             for file in 0..8 {
