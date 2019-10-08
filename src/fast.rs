@@ -18,11 +18,14 @@ impl From<&BoardState> for State {
                 result.by_kind[p.kind as usize] |= bit;
             }
         }
+        result.ep_file = 8;
         if let Some(ep) = b.en_passant_square {
-            // TODO: clear irrelevant ep
-            result.ep_file = (ep.0 % 8) as u8;
-        } else {
-            result.ep_file = 8;
+            let c = b.side_to_play();
+            let mask = ((0b101 << ((ep.0 & 7) + 3 * 8 - 1)) & 0x000000_ff000000)
+                << ((1 - c as i8) * 8);
+            if result.by_color[c as usize] & result.by_kind[0] & mask != 0 {
+                result.ep_file = (ep.0 & 7) as u8;
+            }
         }
         if !b.flags.contains(BoardFlags::WHITE_TO_PLAY) {
             result.flags |= 16;
@@ -164,8 +167,9 @@ lazy_static::lazy_static! {
     static ref PRECOMPUTED: Precomputed = Precomputed::init();
 }
 
-pub fn verify(b: BoardState) {
+pub fn verify(mut b: BoardState) {
     let s: State = (&b).into();
+    b.clear_irrelevant_en_passant_square();
     let b2: BoardState = (&s).into();
     assert_eq!(b, b2);
 }
