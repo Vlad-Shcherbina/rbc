@@ -21,6 +21,9 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         if let Some(ep) = state.en_passant_square {
             info!("en passant square: {:?}", ep);
         }
+
+        rbc::fast::verify(state.clone());
+
         state.clear_irrelevant_en_passant_square();
         info!("sense: {:?} -> {:?}", m.sense, m.sense_result);
         match m.sense {

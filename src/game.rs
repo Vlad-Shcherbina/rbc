@@ -114,8 +114,8 @@ impl From<fen::PieceKind> for PieceKind {
     derive(Serialize, Deserialize),
     serde(from = "bool", into="bool"))]
 pub enum Color {
-    White,
-    Black,
+    White = 0,
+    Black = 1,
 }
 
 impl Color {
@@ -257,6 +257,14 @@ impl From<fen::BoardState> for BoardState {
 }
 
 impl BoardState {
+    pub fn empty() -> BoardState {
+        BoardState {
+            pieces:  [0, 0, 0, 0, 0, 0, 0, 0],
+            flags: BoardFlags::empty(),
+            en_passant_square: None,
+        }
+    }
+
     pub fn initial() -> BoardState {
         fen::BoardState::from_fen(STARTING_FEN).unwrap().into()
     }

@@ -13,3 +13,4 @@ pub mod greedy;
 #[cfg(feature = "heavy")] pub mod history_db;
 pub mod logger;
 pub mod stats;
+pub mod fast;
