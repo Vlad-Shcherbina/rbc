@@ -47,12 +47,12 @@ impl std::fmt::Debug for Square {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PieceKind {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
+    Pawn = 0,
+    Knight = 1,
+    Bishop = 2,
+    Rook = 3,
+    Queen = 4,
+    King = 5,
 }
 
 impl PieceKind {
@@ -80,24 +80,17 @@ impl PieceKind {
     }
 
     pub fn to_int(self) -> u32 {
-        match self {
-            PieceKind::Pawn => 1,
-            PieceKind::Knight => 2,
-            PieceKind::Bishop => 3,
-            PieceKind::Rook => 4,
-            PieceKind::Queen => 5,
-            PieceKind::King => 6,
-        }
+        self as u32
     }
 
     pub fn from_int(i: u32) -> PieceKind {
         match i {
-            1 => PieceKind::Pawn,
-            2 => PieceKind::Knight,
-            3 => PieceKind::Bishop,
-            4 => PieceKind::Rook,
-            5 => PieceKind::Queen,
-            6 => PieceKind::King,
+            0 => PieceKind::Pawn,
+            1 => PieceKind::Knight,
+            2 => PieceKind::Bishop,
+            3 => PieceKind::Rook,
+            4 => PieceKind::Queen,
+            5 => PieceKind::King,
             _ => unreachable!(),
         }
     }
@@ -178,7 +171,7 @@ impl Piece {
         match this {
             None => 0,
             Some(Piece { kind, color }) => {
-                kind.to_int() * 2 - 1 + match color {
+                kind.to_int() * 2 + 1 + match color {
                     Color::White => 0,
                     Color::Black => 1,
                 }
@@ -196,7 +189,7 @@ impl Piece {
                 1 => Color::Black,
                 _ => unreachable!(),
             },
-            kind: PieceKind::from_int((x + 1) / 2),
+            kind: PieceKind::from_int((x - 1) / 2),
         })
     }
 }
@@ -383,7 +376,7 @@ impl BoardState {
             for f in 0.max(f - 1)..=7.min(f + 1) {
                 let q = Square(r * 8 + f);
                 result *= 7;
-                result += self.get_piece(q).map_or(0, |p| p.kind.to_int());
+                result += self.get_piece(q).map_or(6, |p| p.kind.to_int());
             }
         }
         result
