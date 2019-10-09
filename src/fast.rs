@@ -1,5 +1,84 @@
 use crate::game::{Square, Color, PieceKind, Piece, BoardFlags, BoardState};
 
+#[derive(Clone, Copy)]
+pub struct Move(u32);
+
+impl Move {
+    fn new(
+        from: u32, to: u32,
+        from_kind: u32, to_kind: u32,
+        cap: u32,
+        ep_file: u32,
+    ) -> Move {
+        debug_assert!(from < 64);
+        debug_assert!(to < 64);
+        debug_assert!(from_kind < 6);
+        debug_assert!(to_kind < 6);
+        debug_assert!(ep_file <= 8);
+        debug_assert!(cap <= 6);
+        Move(
+            from |
+            to << 6 |
+            from_kind << 12 |
+            to_kind << 15 |
+            cap << 18 |
+            ep_file << 21 |
+            0)
+    }
+    fn from(self) -> u32 {
+        self.0 & 63
+    }
+    fn to(self) -> u32 {
+        (self.0 >> 6) & 63
+    }
+    fn from_kind(self) -> u32 {
+        (self.0 >> 12) & 7
+    }
+    fn to_kind(self) -> u32 {
+        (self.0 >> 15) & 7
+    }
+    fn cap(self) -> u32 {
+        (self.0 >> 18) & 7
+    }
+    fn ep_file(self) -> u32 {
+        (self.0 >> 21) & 15
+    }
+
+    fn null() -> Move {
+        Move::new(0, 0, 0, 0, 0, 8)
+    }
+
+    fn from_simple_move(m: crate::game::Move, s: &State) -> Move {
+        let from_kind = s.get_opt_kind(m.from.0);
+        assert!(from_kind > 0);
+        let from_kind = from_kind - 1;
+        let to_kind = m.promotion.map_or(from_kind, |k| k as u32);
+        let cap = s.get_opt_kind(m.to.0);
+        Move::new(
+            m.from.0 as u32,
+            m.to.0 as u32,
+            from_kind,
+            to_kind,
+            cap,
+            8u32,  // TOOD: ep_file
+        )
+    }
+}
+
+impl std::fmt::Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("Move")
+            .field("from", &self.from())
+            .field("to", &self.to())
+            .field("from_kind", &self.from_kind())
+            .field("to_kind", &self.to_kind())
+            .field("cap", &self.cap())
+            .field("ep_file", &self.ep_file())
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct State {
     by_color: [u64; 2],
     by_kind: [u64; 6],
@@ -87,6 +166,10 @@ impl State {
         }
     }
 
+    fn side_to_play(&self) -> u8 {
+        self.flags >> 4
+    }
+
     fn get_kind(&self, sq: i8) -> u32 {
         debug_assert!(((self.by_color[0] | self.by_color[1]) >> sq) & 1 != 0);
         let kind =
@@ -94,6 +177,16 @@ impl State {
             (((self.by_kind[2] | self.by_kind[3]) >> sq) & 1) * 2 +
             (((self.by_kind[4] | self.by_kind[5]) >> sq) & 1) * 4;
         debug_assert!(kind < 6);
+        kind as u32
+    }
+
+    // 0 or kind + 1
+    fn get_opt_kind(&self, sq: i8) -> u32 {
+        let kind =
+            (((self.by_kind[0] | self.by_kind[2] | self.by_kind[4]) >> sq) & 1) +
+            (((self.by_kind[1] | self.by_kind[2] | self.by_kind[5]) >> sq) & 1) * 2 +
+            (((self.by_kind[3] | self.by_kind[4] | self.by_kind[5]) >> sq) & 1) * 4;
+        debug_assert!(kind <= 6);
         kind as u32
     }
 
@@ -109,7 +202,7 @@ impl State {
             let kind = self.get_kind(sq);
             result ^= pre.zobrist[(kind as usize * 2 + color as usize) * 64 + sq as usize];
         }
-        result ^= (self.flags >> 4) as u64 * pre.zobrist_black_to_play;
+        result ^= self.side_to_play() as u64 * pre.zobrist_black_to_play;
         result ^= pre.zobrist_castling[(self.flags & 15) as usize];
         result ^= pre.zobrist_ep[self.ep_file as usize];
         result
@@ -128,6 +221,61 @@ impl State {
         assert_eq!(self.hash, self.recompute_hash());
         true
     }
+
+    pub fn make_move(&mut self, m: Move, undo_log: &mut Vec<UndoEntry>) {
+        undo_log.push(UndoEntry {
+            hash: self.hash,
+            flags: self.flags,
+            ep_file: self.ep_file,
+        });
+        let pre: &Precomputed = &PRECOMPUTED;
+        let cap = m.cap();
+        self.hash ^= pre.zobrist_ep[self.ep_file as usize];
+        self.hash ^= pre.zobrist_castling[(self.flags & 15) as usize];
+        let from_bit = 1 << m.from();
+        let to_bit = 1 << m.to();
+        let c = self.side_to_play();
+        self.by_color[c as usize] ^= from_bit ^ to_bit;
+        self.by_kind[m.from_kind() as usize] ^= from_bit;
+        self.by_kind[m.to_kind() as usize] ^= to_bit;
+        self.hash ^= pre.zobrist[(m.from_kind() as usize * 2 + c as usize) * 64 + m.from() as usize];
+        self.hash ^= pre.zobrist[(m.to_kind() as usize * 2 + c as usize) * 64 + m.to() as usize];
+        if cap != 0 {
+            // TODO
+        } else {
+            // TODO: castlings
+        }
+        // TODO: clear castling flag
+        self.ep_file = m.ep_file() as u8;
+        self.hash ^= pre.zobrist_ep[self.ep_file as usize];
+        self.flags ^= 16;
+        self.hash ^= pre.zobrist_black_to_play;
+        self.hash ^= pre.zobrist_castling[(self.flags & 15) as usize];
+
+        debug_assert_eq!(self.hash, self.recompute_hash());
+    }
+
+    pub fn unmake_move(&mut self, m: Move, undo_log: &mut Vec<UndoEntry>) {
+        let u = undo_log.pop().unwrap();
+        self.hash = u.hash;
+        self.flags = u.flags;
+        self.ep_file = u.ep_file;
+
+        let from_bit = 1 << m.from();
+        let to_bit = 1 << m.to();
+        let c = self.side_to_play();
+        self.by_color[c as usize] ^= from_bit ^ to_bit;
+        self.by_kind[m.from_kind() as usize] ^= from_bit;
+        self.by_kind[m.to_kind() as usize] ^= to_bit;
+
+        debug_assert_eq!(self.hash, self.recompute_hash());
+    }
+}
+
+pub struct UndoEntry {
+    hash: u64,
+    flags: u8,
+    ep_file: u8,
 }
 
 struct Precomputed {
@@ -168,8 +316,20 @@ lazy_static::lazy_static! {
 }
 
 pub fn verify(mut b: BoardState) {
-    let s: State = (&b).into();
+    let mut s: State = (&b).into();
     b.clear_irrelevant_en_passant_square();
     let b2: BoardState = (&s).into();
     assert_eq!(b, b2);
+
+    let mut undo_log = Vec::new();
+    let s0 = s.clone();
+
+    let m = Move::null();
+    s.make_move(m, &mut undo_log);
+    let mut b2: BoardState = b.clone();
+    b2.make_move(None, &mut crate::obs::NullObs);
+    let s2: State = (&b2).into();
+    assert_eq!(s, s2);
+    s.unmake_move(m, &mut undo_log);
+    assert_eq!(s, s0);
 }
