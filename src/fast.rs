@@ -1,3 +1,4 @@
+use log::info;
 use crate::game::{Square, Color, PieceKind, Piece, BoardFlags, BoardState};
 
 #[derive(Clone, Copy)]
@@ -45,7 +46,7 @@ impl Move {
     }
 
     fn null() -> Move {
-        Move::new(0, 0, 0, 0, 0, 8)
+        Move::new(1, 1, 0, 0, 0, 8)
     }
 
     fn from_simple_move(m: crate::game::Move, s: &State) -> Move {
@@ -54,13 +55,25 @@ impl Move {
         let from_kind = from_kind - 1;
         let to_kind = m.promotion.map_or(from_kind, |k| k as u32);
         let cap = s.get_opt_kind(m.to.0);
+        let mut ep_file = 8;
+        if from_kind == PieceKind::Pawn as u32 {
+            let c = 1 - s.side_to_play();
+            let epf = m.from.0 & 7;
+            if (m.to.0 - m.from.0).abs() == 16 {
+                let mask = ((0b101 << (epf + 3 * 8 - 1)) & 0x000000_ff000000)
+                    << ((1 - c as i8) * 8);
+                if s.by_color[c as usize] & s.by_kind[0] & mask != 0 {
+                    ep_file = epf as u32;
+                }
+            }
+        }
         Move::new(
             m.from.0 as u32,
             m.to.0 as u32,
             from_kind,
             to_kind,
             cap,
-            8u32,  // TOOD: ep_file
+            ep_file,
         )
     }
 }
@@ -229,7 +242,6 @@ impl State {
             ep_file: self.ep_file,
         });
         let pre: &Precomputed = &PRECOMPUTED;
-        let cap = m.cap();
         self.hash ^= pre.zobrist_ep[self.ep_file as usize];
         self.hash ^= pre.zobrist_castling[(self.flags & 15) as usize];
         let from_bit = 1 << m.from();
@@ -240,12 +252,68 @@ impl State {
         self.by_kind[m.to_kind() as usize] ^= to_bit;
         self.hash ^= pre.zobrist[(m.from_kind() as usize * 2 + c as usize) * 64 + m.from() as usize];
         self.hash ^= pre.zobrist[(m.to_kind() as usize * 2 + c as usize) * 64 + m.to() as usize];
+
+        let cap = m.cap();
         if cap != 0 {
-            // TODO
+            self.by_color[1 - c as usize] ^= to_bit;
+            self.by_kind[cap as usize - 1] ^= to_bit;
+            self.hash ^= pre.zobrist[((cap as usize - 1) * 2 + 1 - c as usize) * 64 + m.to() as usize];
         } else {
-            // TODO: castlings
+            if m.0 & 32767 == 0b101_000110_000100 {  // White OO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 7 | 1 << 5;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 7 | 1 << 5;
+                self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 7] ^
+                             pre.zobrist[(r * 2 + 0) * 64 + 5];
+            } else if m.0 & 32767 == 0b101_111110_111100 {  // Black OO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 7] ^
+                             pre.zobrist[(r * 2 + 1) * 64 + 56 + 5];
+            } else if m.0 & 32767 == 0b101_000010_000100 {  // White OOO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 0 | 1 << 3;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 0 | 1 << 3;
+                self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 0] ^
+                             pre.zobrist[(r * 2 + 0) * 64 + 3];
+            } else if m.0 & 32767 == 0b101_111010_111100 {  // Black OOO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 0] ^
+                             pre.zobrist[(r * 2 + 1) * 64 + 56 + 3];
+            } else if self.ep_file < 8 {
+                if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b0_000_101000 + self.ep_file as u32 {
+                    // white ep capture
+                    self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
+                    self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
+                    self.hash ^= pre.zobrist[1 * 64 + 4 * 8 + self.ep_file as usize];
+                } else if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b1_000_010000 + self.ep_file as u32 {
+                    // black ep capture
+                    self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
+                    self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
+                    self.hash ^= pre.zobrist[0 * 64 + 3 * 8 + self.ep_file as usize];
+                }
+            }
         }
-        // TODO: clear castling flag
+
+        const CASTLING_FILTER: [u8; 64] = [
+            !2, !0, !0, !0, !3, !0, !0, !1,
+            !0, !0, !0, !0, !0, !0, !0, !0,
+            !0, !0, !0, !0, !0, !0, !0, !0,
+            !0, !0, !0, !0, !0, !0, !0, !0,
+            !0, !0, !0, !0, !0, !0, !0, !0,
+            !0, !0, !0, !0, !0, !0, !0, !0,
+            !0, !0, !0, !0, !0, !0, !0, !0,
+            !8, !0, !0, !0, !12, !0, !0, !4,
+        ];
+        self.flags &= CASTLING_FILTER[m.from() as usize] & CASTLING_FILTER[m.to() as usize];
+
         self.ep_file = m.ep_file() as u8;
         self.hash ^= pre.zobrist_ep[self.ep_file as usize];
         self.flags ^= 16;
@@ -267,6 +335,40 @@ impl State {
         self.by_color[c as usize] ^= from_bit ^ to_bit;
         self.by_kind[m.from_kind() as usize] ^= from_bit;
         self.by_kind[m.to_kind() as usize] ^= to_bit;
+
+        let cap = m.cap();
+        if cap != 0 {
+            self.by_color[1 - c as usize] ^= to_bit;
+            self.by_kind[cap as usize - 1] ^= to_bit;
+        } else {
+            if m.0 & 32767 == 0b101_000110_000100 {  // White OO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 7 | 1 << 5;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 7 | 1 << 5;
+            } else if m.0 & 32767 == 0b101_111110_111100 {  // Black OO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 7 | 1 << 56 + 5;
+            } else if m.0 & 32767 == 0b101_000010_000100 {  // White OOO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 0 | 1 << 3;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 0 | 1 << 3;
+            } else if m.0 & 32767 == 0b101_111010_111100 {  // Black OOO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 0 | 1 << 56 + 3;
+            } else if self.ep_file < 8 {
+                if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b0_000_101000 + self.ep_file as u32 {
+                    // white ep capture
+                    self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
+                    self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
+                } else if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b1_000_010000 + self.ep_file as u32 {
+                    // black ep capture
+                    self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
+                    self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
+                }
+            }
+        }
 
         debug_assert_eq!(self.hash, self.recompute_hash());
     }
@@ -324,12 +426,22 @@ pub fn verify(mut b: BoardState) {
     let mut undo_log = Vec::new();
     let s0 = s.clone();
 
-    let m = Move::null();
-    s.make_move(m, &mut undo_log);
-    let mut b2: BoardState = b.clone();
-    b2.make_move(None, &mut crate::obs::NullObs);
-    let s2: State = (&b2).into();
-    assert_eq!(s, s2);
-    s.unmake_move(m, &mut undo_log);
-    assert_eq!(s, s0);
+    let all_moves = b.all_moves().into_iter().map(Option::Some).chain(Some(None));
+
+    for gm in all_moves {
+        info!("{:#?}", b.render());
+        info!("{:?}", gm);
+        let m = gm.map_or(Move::null(), |gm| Move::from_simple_move(gm, &s));
+
+        s.make_move(m, &mut undo_log);
+        let mut b2: BoardState = b.clone();
+        b2.make_move(gm, &mut crate::obs::NullObs);
+        b2.clear_irrelevant_en_passant_square();
+        let s2: State = (&b2).into();
+        assert_eq!(s, s2);
+        let b3: BoardState = (&s).into();
+        assert_eq!(b3, b2);
+        s.unmake_move(m, &mut undo_log);
+        assert_eq!(s, s0);
+    }
 }
