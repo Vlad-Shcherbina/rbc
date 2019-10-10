@@ -569,6 +569,297 @@ impl State {
             }
         }
     }
+
+    #[inline(never)]
+    pub fn all_attacks(&self, result: &mut Vec<Move>) {
+        let targets = self.by_color[1 - self.side_to_play() as usize];
+        if self.side_to_play() == 0 {
+            let my_pawns = self.by_color[0] & self.by_kind[0];
+
+            // captures right
+            let froms = my_pawns & (targets & 0xfefefefe_fefefefe) >> 9;
+            for from in iter_one_positions(froms & 0xff00ffff_ffffffff) {
+                let cap = self.get_opt_kind(from as i8 + 9);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from + 9, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00ff0000_00000000) {
+                let cap = self.get_opt_kind(from as i8 + 9);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from + 9, 0, PieceKind::Queen as u32, cap, 8));
+            }
+
+            // captures left
+            let froms = my_pawns & (targets & 0x7f7f7f7f_7f7f7f7f) >> 7;
+            for from in iter_one_positions(froms & 0xff00ffff_ffffffff) {
+                let cap = self.get_opt_kind(from as i8 + 7);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from + 7, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00ff0000_00000000) {
+                let cap = self.get_opt_kind(from as i8 + 7);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from + 7, 0, PieceKind::Queen as u32, cap, 8));
+            }
+        } else {
+            let my_pawns = self.by_color[1] & self.by_kind[0];
+
+            // captures right
+            let froms = my_pawns & (targets & 0xfefefefe_fefefefe) << 7;
+            for from in iter_one_positions(froms & 0xffffffff_ffff00ff) {
+                let cap = self.get_opt_kind(from as i8 - 7);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from - 7, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00000000_0000ff00) {
+                let cap = self.get_opt_kind(from as i8 - 7);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from - 7, 0, PieceKind::Queen as u32, cap, 8));
+            }
+
+            // captures left
+            let froms = my_pawns & (targets & 0x7f7f7f7f_7f7f7f7f) << 9;
+            for from in iter_one_positions(froms & 0xffffffff_ffff00ff) {
+                let cap = self.get_opt_kind(from as i8 - 9);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from - 9, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00000000_0000ff00) {
+                let cap = self.get_opt_kind(from as i8 - 9);
+                debug_assert!(cap != 0);
+                result.push(Move::new(from, from - 9, 0, PieceKind::Queen as u32, cap, 8));
+            }
+        }
+
+        let pre: &Precomputed = &PRECOMPUTED;
+        let mine = self.by_color[self.side_to_play() as usize];
+        for from in iter_one_positions(mine & self.by_kind[PieceKind::Knight as usize]) {
+            for to in iter_one_positions(pre.knight_attacks[from as usize] & targets) {
+                let cap = self.get_opt_kind(to as i8);
+                debug_assert!(cap != 0);
+                result.push(Move::new(
+                    from, to,
+                    PieceKind::Knight as u32, PieceKind::Knight as u32,
+                    cap, 8));
+            }
+        }
+        for from in iter_one_positions(mine & self.by_kind[PieceKind::King as usize]) {
+            for to in iter_one_positions(pre.king_attacks[from as usize] & targets) {
+                let cap = self.get_opt_kind(to as i8);
+                debug_assert!(cap != 0);
+                result.push(Move::new(
+                    from, to,
+                    PieceKind::King as u32, PieceKind::King as u32,
+                    cap, 8));
+            }
+        }
+
+        let occ = self.by_color[0] | self.by_color[1];
+        for kind in 2..5 {
+            for from in iter_one_positions(mine & self.by_kind[kind]) {
+                let SlidingEntry {
+                    attack: mut ts,
+                    mask: mut b
+                } = pre.sliding[(kind - 2) * 64 + from as usize];
+                ts &= targets;
+                b &= occ;
+                while b != 0 && ts != 0 {
+                    let sq = (b & b.wrapping_neg()).trailing_zeros();
+                    b &= b - 1;
+                    let behind = pre.behind[from as usize * 64 + sq as usize];
+                    ts &= !behind;
+                    b &= !behind;
+                }
+                for to in iter_one_positions(ts) {
+                    result.push(Move::new(
+                        from, to,
+                        kind as u32, kind as u32,
+                        self.get_opt_kind(to as i8), 8));
+                }
+            }
+        }
+    }
+
+    #[inline(never)]
+    pub fn can_attack_to(&self, to: Square, color: crate::game::Color) -> bool {
+        let color = color as usize;
+        let bit = 1u64 << to.0;
+        if color == 0 {
+            let froms = self.by_color[0] & self.by_kind[0] & (
+                (bit & 0xfefefefefefefefe) >> 9 |
+                (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+            if froms != 0 {
+                return true;
+            }
+        } else {
+            let bit = 1u64 << to.0;
+            let froms = self.by_color[1] & self.by_kind[0] & (
+                (bit & 0xfefefefefefefefe) << 7 |
+                (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+            if froms != 0 {
+                return true;
+            }
+        }
+        let pre: &Precomputed = &PRECOMPUTED;
+        let mine = self.by_color[color];
+        let knights = mine & self.by_kind[PieceKind::Knight as usize] & pre.knight_attacks[to.0 as usize];
+        if knights != 0 {
+            return true;
+        }
+
+        let occ = self.by_color[0] | self.by_color[1];
+        let sliding_attackers = mine & (
+            (self.by_kind[PieceKind::Bishop as usize] |
+             self.by_kind[PieceKind::Queen as usize]) & pre.sliding[0 * 64 + to.0 as usize].attack |
+            (self.by_kind[PieceKind::Rook as usize] |
+             self.by_kind[PieceKind::Queen as usize]) & pre.sliding[1 * 64 + to.0 as usize].attack);
+        for from in iter_one_positions(sliding_attackers) {
+            if occ & pre.in_between[to.0 as usize * 64 + from as usize] == 0 {
+                return true;
+            }
+        }
+
+        let kings = mine & self.by_kind[PieceKind::King as usize] & pre.king_attacks[to.0 as usize];
+        if kings != 0 {
+            return true;
+        }
+        false
+    }
+
+    #[inline(never)]
+    pub fn cheapest_attack_to(&self, to: Square, color: crate::game::Color) -> Option<Move> {
+        let color = color as usize;
+        if color == 0 {
+            if to.0 < 56 {
+                let bit = 1u64 << to.0;
+                let froms = self.by_color[0] & self.by_kind[0] & (
+                    (bit & 0xfefefefefefefefe) >> 9 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+                if froms != 0 {
+                    let from = froms.trailing_zeros();
+                    let cap = self.get_opt_kind(to.0);
+                    debug_assert!(cap != 0);
+                    return Some(Move::new(
+                        from, to.0 as u32,
+                        0, 0,
+                        cap, 8));
+                }
+            }
+        } else {
+            if to.0 >= 8 {
+                let bit = 1u64 << to.0;
+                let froms = self.by_color[1] & self.by_kind[0] & (
+                    (bit & 0xfefefefefefefefe) << 7 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                if froms != 0 {
+                    let from = froms.trailing_zeros();
+                    let cap = self.get_opt_kind(to.0);
+                    debug_assert!(cap != 0);
+                    return Some(Move::new(
+                        from, to.0 as u32,
+                        0, 0,
+                        cap, 8));
+                }
+            }
+        }
+        let pre: &Precomputed = &PRECOMPUTED;
+        let mine = self.by_color[color];
+
+        let knights = mine & self.by_kind[PieceKind::Knight as usize] & pre.knight_attacks[to.0 as usize];
+        if knights != 0 {
+            let from = knights.trailing_zeros();
+            let cap = self.get_opt_kind(to.0);
+            debug_assert!(cap != 0);
+            return Some(Move::new(
+                from, to.0 as u32,
+                PieceKind::Knight as u32, PieceKind::Knight as u32,
+                cap, 8));
+        }
+
+        let occ = self.by_color[0] | self.by_color[1];
+
+        let bishops = mine & self.by_kind[PieceKind::Bishop as usize] & pre.sliding[0 * 64 + to.0 as usize].attack;
+        for from in iter_one_positions(bishops) {
+            if occ & pre.in_between[to.0 as usize * 64 + from as usize] == 0 {
+                let cap = self.get_opt_kind(to.0);
+                debug_assert!(cap != 0);
+                return Some(Move::new(
+                    from, to.0 as u32,
+                    PieceKind::Bishop as u32, PieceKind::Bishop as u32,
+                    self.get_opt_kind(to.0), 8));
+            }
+        }
+
+        let rooks = mine & self.by_kind[PieceKind::Rook as usize] & pre.sliding[1 * 64 + to.0 as usize].attack;
+        for from in iter_one_positions(rooks) {
+            if occ & pre.in_between[to.0 as usize * 64 + from as usize] == 0 {
+                let cap = self.get_opt_kind(to.0);
+                debug_assert!(cap != 0);
+                return Some(Move::new(
+                    from, to.0 as u32,
+                    PieceKind::Rook as u32, PieceKind::Rook as u32,
+                    self.get_opt_kind(to.0), 8));
+            }
+        }
+
+        let queens = mine & self.by_kind[PieceKind::Queen as usize] & pre.sliding[2 * 64 + to.0 as usize].attack;
+        for from in iter_one_positions(queens) {
+            if occ & pre.in_between[to.0 as usize * 64 + from as usize] == 0 {
+                let cap = self.get_opt_kind(to.0);
+                debug_assert!(cap != 0);
+                return Some(Move::new(
+                    from, to.0 as u32,
+                    PieceKind::Queen as u32, PieceKind::Queen as u32,
+                    self.get_opt_kind(to.0), 8));
+            }
+        }
+
+        if color == 0 {
+            if to.0 >= 56 {
+                let bit = 1u64 << to.0;
+                let froms = self.by_color[0] & self.by_kind[0] & (
+                    (bit & 0xfefefefefefefefe) >> 9 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) >> 7);
+                if froms != 0 {
+                    let from = froms.trailing_zeros();
+                    let cap = self.get_opt_kind(to.0);
+                    debug_assert!(cap != 0);
+                    return Some(Move::new(
+                        from, to.0 as u32,
+                        0, PieceKind::Queen as u32,
+                        cap, 8));
+                }
+            }
+        } else {
+            if to.0 < 8 {
+                let bit = 1u64 << to.0;
+                let froms = self.by_color[1] & self.by_kind[0] & (
+                    (bit & 0xfefefefefefefefe) << 7 |
+                    (bit & 0x7f7f7f7f7f7f7f7f) << 9);
+                if froms != 0 {
+                    let from = froms.trailing_zeros();
+                    let cap = self.get_opt_kind(to.0);
+                    debug_assert!(cap != 0);
+                    return Some(Move::new(
+                        from, to.0 as u32,
+                        0, PieceKind::Queen as u32,
+                        cap, 8));
+                }
+            }
+        }
+
+        let kings = mine & self.by_kind[PieceKind::King as usize] & pre.king_attacks[to.0 as usize];
+        if kings != 0 {
+            let from = kings.trailing_zeros();
+            let cap = self.get_opt_kind(to.0);
+            debug_assert!(cap != 0);
+            return Some(Move::new(
+                from, to.0 as u32,
+                PieceKind::King as u32, PieceKind::King as u32,
+                cap, 8));
+        }
+        None
+    }
 }
 
 pub struct UndoEntry {
@@ -621,6 +912,32 @@ fn compute_behind(from: i8, to: i8) -> Option<u64> {
     Some(result)
 }
 
+fn compute_in_between(from: i8, to: i8) -> Option<u64> {
+    if from == to {
+        return None;
+    }
+    let mut rank = from / 8;
+    let mut file = from % 8;
+    let dr = to / 8 - rank;
+    let df = to % 8 - file;
+    if dr != 0 && df != 0 && dr.abs() != df.abs() {
+        return None;
+    }
+    let dr = dr.signum();
+    let df = df.signum();
+    let mut result = 0;
+    loop {
+        rank += dr;
+        file += df;
+        let pos = rank * 8 + file;
+        if pos == to {
+            break;
+        }
+        result |= 1 << pos;
+    }
+    Some(result)
+}
+
 struct Precomputed {
     zobrist: [u64; 6 * 2 * 64],
     zobrist_castling: [u64; 16],
@@ -631,6 +948,7 @@ struct Precomputed {
     king_attacks: [u64; 64],
     sliding: [SlidingEntry; 3 * 64],
     behind: [u64; 64 * 64],
+    in_between: [u64; 64 * 64],
 }
 
 impl Precomputed {
@@ -682,9 +1000,11 @@ impl Precomputed {
             }
         }
         let mut behind = [0; 64 * 64];
+        let mut in_between = [0; 64 * 64];
         for from in 0..64 {
             for to in 0..64 {
                 behind[from * 64 + to] = compute_behind(from as i8, to as i8).unwrap_or(0);
+                in_between[from * 64 + to] = compute_in_between(from as i8, to as i8).unwrap_or(0);
             }
         }
 
@@ -697,6 +1017,7 @@ impl Precomputed {
             king_attacks,
             sliding,
             behind,
+            in_between,
         }
     }
 }
@@ -734,6 +1055,52 @@ pub fn verify(mut b: BoardState) {
     }
     for &m in &expected_all_moves {
         assert!(all_moves.contains(&m), "{:?} ({:?})", m, m.to_simple_move());
+    }
+
+    let all_attacks: Vec<_> = all_moves.iter().cloned()
+        .filter(|m| m.cap() != 0 &&
+                    (m.to_kind() == m.from_kind() || m.to_kind() == PieceKind::Queen as u32))
+        .collect();
+
+    let mut all_attacks2 = Vec::new();
+    s.all_attacks(&mut all_attacks2);
+    for &m in &all_attacks {
+        assert!(all_attacks2.contains(&m), "{:?} ({:?})", m, m.to_simple_move());
+    }
+    for &m in &all_attacks2 {
+        assert!(all_attacks.contains(&m), "{:?} ({:?})", m, m.to_simple_move());
+    }
+
+    for sq in (0..64).map(crate::game::Square) {
+        if let Some(p) = b.get_piece(sq) {
+            if p.color != b.side_to_play() {
+                let attacks_to: Vec<_> = all_attacks.iter().cloned()
+                    .filter(|m| m.to() == sq.0 as u32)
+                    .collect();
+                assert_eq!(!attacks_to.is_empty(), s.can_attack_to(sq, b.side_to_play()), "{:?}", sq);
+
+                fn attacker_cost(m: &Move) -> i32 {
+                    match m.to_kind() {
+                        0 => 100,
+                        1 => 350,
+                        2 => 350,
+                        3 => 525,
+                        4 => 1000,
+                        5 => 10000,
+                        _ => unreachable!(),
+                    }
+                }
+                let expected = attacks_to.iter().cloned().min_by_key(attacker_cost);
+                match (expected, s.cheapest_attack_to(sq, b.side_to_play())) {
+                    (None, None) => {}
+                    (Some(em), Some(m)) => {
+                        assert!(attacks_to.contains(&m), "{:?}", m);
+                        assert_eq!(attacker_cost(&em), attacker_cost(&m), "{:?} {:?}", em, m);
+                    }
+                    z => panic!("{:?} {:?}", sq, z),
+                }
+            }
+        }
     }
 
     for gm in all_gmoves {
