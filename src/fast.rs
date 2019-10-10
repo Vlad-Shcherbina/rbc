@@ -290,6 +290,7 @@ impl State {
         true
     }
 
+    #[inline(never)]
     pub fn make_move(&mut self, m: Move, undo_log: &mut Vec<UndoEntry>) {
         undo_log.push(UndoEntry {
             hash: self.hash,
@@ -382,6 +383,7 @@ impl State {
         debug_assert_eq!(self.hash, self.recompute_hash());
     }
 
+    #[inline(never)]
     pub fn unmake_move(&mut self, m: Move, undo_log: &mut Vec<UndoEntry>) {
         let u = undo_log.pop().unwrap();
         self.hash = u.hash;
