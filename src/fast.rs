@@ -1,7 +1,7 @@
 use log::info;
 use crate::game::{Square, Color, PieceKind, Piece, BoardFlags, BoardState};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Move(u32);
 
 impl Move {
@@ -49,7 +49,11 @@ impl Move {
         Move::new(1, 1, 0, 0, 0, 8)
     }
 
-    fn from_simple_move(m: crate::game::Move, s: &State) -> Move {
+    fn from_simple_move(m: Option<crate::game::Move>, s: &State) -> Move {
+        let m = match m {
+            Some(m) => m,
+            None => return Move::null(),
+        };
         let from_kind = s.get_opt_kind(m.from.0);
         assert!(from_kind > 0);
         let from_kind = from_kind - 1;
@@ -75,6 +79,22 @@ impl Move {
             cap,
             ep_file,
         )
+    }
+
+    fn to_simple_move(self) -> Option<crate::game::Move> {
+        if self == Move::null() {
+            return None;
+        }
+        let promotion = if self.from_kind() == self.to_kind() {
+            None
+        } else {
+            Some(PieceKind::from_int(self.to_kind()))
+        };
+        Some(crate::game::Move {
+            from: Square(self.from() as i8),
+            to: Square(self.to() as i8),
+            promotion,
+        })
     }
 }
 
@@ -369,8 +389,181 @@ impl State {
                 }
             }
         }
+    }
 
-        debug_assert_eq!(self.hash, self.recompute_hash());
+    #[inline(never)]
+    pub fn all_moves(&self, result: &mut Vec<Move>) {
+        let occ = self.by_color[0] | self.by_color[1];
+        if self.side_to_play() == 0 {
+            // pushes
+            let my_pawns = self.by_color[0] & self.by_kind[0];
+            let froms = my_pawns & (!occ >> 8);
+            for from in iter_one_positions(froms & 0xff00ffff_ffffffff) {
+                result.push(Move::new(from, from + 8, 0, 0, 0, 8));
+            }
+            for from in iter_one_positions(froms & 0x00ff0000_00000000) {
+                for promo in 1..5 {
+                    result.push(Move::new(from, from + 8, 0, promo, 0, 8));
+                }
+            }
+
+            // double pushes
+            let froms = froms & (!occ >> 16) & 0x000000_0000ff00;
+            let opp_pawns = self.by_color[1] & self.by_kind[0];
+            let ep_threat =
+                (opp_pawns & 0xfefefefe_fefefefe) >> 9 | (opp_pawns & 0x7f7f7f7f_7f7f7f7f) >> 7;
+            let ep_threat = ep_threat >> 8;
+            for from in iter_one_positions(froms & !ep_threat) {
+                result.push(Move::new(from, from + 16, 0, 0, 0, 8));
+            }
+            for from in iter_one_positions(froms & ep_threat) {
+                result.push(Move::new(from, from + 16, 0, 0, 0, from & 7));
+            }
+
+            let targets = self.by_color[1] | (1 << self.ep_file & 0xff) << 5 * 8;
+
+            // captures right
+            let froms = my_pawns & (targets & 0xfefefefe_fefefefe) >> 9;
+            for from in iter_one_positions(froms & 0xff00ffff_ffffffff) {
+                let cap = self.get_opt_kind(from as i8 + 9);
+                result.push(Move::new(from, from + 9, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00ff0000_00000000) {
+                let cap = self.get_opt_kind(from as i8 + 9);
+                debug_assert!(cap != 0);
+                for promo in 1..5 {
+                    result.push(Move::new(from, from + 9, 0, promo, cap, 8));
+                }
+            }
+
+            // captures left
+            let froms = my_pawns & (targets & 0x7f7f7f7f_7f7f7f7f) >> 7;
+            for from in iter_one_positions(froms & 0xff00ffff_ffffffff) {
+                let cap = self.get_opt_kind(from as i8 + 7);
+                result.push(Move::new(from, from + 7, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00ff0000_00000000) {
+                let cap = self.get_opt_kind(from as i8 + 7);
+                debug_assert!(cap != 0);
+                for promo in 1..5 {
+                    result.push(Move::new(from, from + 7, 0, promo, cap, 8));
+                }
+            }
+
+            // castlings
+            if self.flags & 1 != 0 && occ & 0b0110_0000 == 0 {
+                result.push(Move::new(4, 6, 5, 5, 0, 8));
+            }
+            if self.flags & 2 != 0 && occ & 0b0000_1110 == 0 {
+                result.push(Move::new(4, 2, 5, 5, 0, 8));
+            }
+        } else {
+            // pushes
+            let my_pawns = self.by_color[1] & self.by_kind[0];
+            let froms = my_pawns & (!occ << 8);
+            for from in iter_one_positions(froms & 0xffffffff_ffff00ff) {
+                result.push(Move::new(from, from - 8, 0, 0, 0, 8));
+            }
+            for from in iter_one_positions(froms & 0x00000000_0000ff00) {
+                for promo in 1..5 {
+                    result.push(Move::new(from, from - 8, 0, promo, 0, 8));
+                }
+            }
+
+            // double pushes
+            let froms = froms & (!occ << 16) & 0x00ff0000_00000000;
+            let opp_pawns = self.by_color[0] & self.by_kind[0];
+            let ep_threat =
+                (opp_pawns & 0xfefefefe_fefefefe) << 7 | (opp_pawns & 0x7f7f7f7f_7f7f7f7f) << 9;
+            let ep_threat = ep_threat << 8;
+            for from in iter_one_positions(froms & !ep_threat) {
+                result.push(Move::new(from, from - 16, 0, 0, 0, 8));
+            }
+            for from in iter_one_positions(froms & ep_threat) {
+                result.push(Move::new(from, from - 16, 0, 0, 0, from & 7));
+            }
+
+            let targets = self.by_color[0] | (1 << self.ep_file & 0xff) << 2 * 8;
+
+            // captures right
+            let froms = my_pawns & (targets & 0xfefefefe_fefefefe) << 7;
+            for from in iter_one_positions(froms & 0xffffffff_ffff00ff) {
+                let cap = self.get_opt_kind(from as i8 - 7);
+                result.push(Move::new(from, from - 7, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00000000_0000ff00) {
+                let cap = self.get_opt_kind(from as i8 - 7);
+                debug_assert!(cap != 0);
+                for promo in 1..5 {
+                    result.push(Move::new(from, from - 7, 0, promo, cap, 8));
+                }
+            }
+
+            // captures left
+            let froms = my_pawns & (targets & 0x7f7f7f7f_7f7f7f7f) << 9;
+            for from in iter_one_positions(froms & 0xffffffff_ffff00ff) {
+                let cap = self.get_opt_kind(from as i8 - 9);
+                result.push(Move::new(from, from - 9, 0, 0, cap, 8));
+            }
+            for from in iter_one_positions(froms & 0x00000000_0000ff00) {
+                let cap = self.get_opt_kind(from as i8 - 9);
+                debug_assert!(cap != 0);
+                for promo in 1..5 {
+                    result.push(Move::new(from, from - 9, 0, promo, cap, 8));
+                }
+            }
+
+            // castlings
+            if self.flags & 4 != 0 && occ & 0b0110_0000 << 56 == 0 {
+                result.push(Move::new(4 + 56, 6 + 56, 5, 5, 0, 8));
+            }
+            if self.flags & 8 != 0 && occ & 0b0000_1110 << 56 == 0 {
+                result.push(Move::new(4 + 56, 2 + 56, 5, 5, 0, 8));
+            }
+        }
+
+        let pre: &Precomputed = &PRECOMPUTED;
+        let mine = self.by_color[self.side_to_play() as usize];
+        for from in iter_one_positions(mine & self.by_kind[PieceKind::Knight as usize]) {
+            for to in iter_one_positions(pre.knight_attacks[from as usize] & !mine) {
+                result.push(Move::new(
+                    from, to,
+                    PieceKind::Knight as u32, PieceKind::Knight as u32,
+                    self.get_opt_kind(to as i8), 8));
+            }
+        }
+        for from in iter_one_positions(mine & self.by_kind[PieceKind::King as usize]) {
+            for to in iter_one_positions(pre.king_attacks[from as usize] & !mine) {
+                result.push(Move::new(
+                    from, to,
+                    PieceKind::King as u32, PieceKind::King as u32,
+                    self.get_opt_kind(to as i8), 8));
+            }
+        }
+
+        for kind in 2..5 {
+            for from in iter_one_positions(mine & self.by_kind[kind]) {
+                let SlidingEntry {
+                    attack: mut ts,
+                    mask: mut b
+                } = pre.sliding[(kind - 2) * 64 + from as usize];
+                ts &= !mine;
+                b &= occ;
+                while b != 0 {
+                    let sq = (b & b.wrapping_neg()).trailing_zeros();
+                    b &= b - 1;
+                    let behind = pre.behind[from as usize * 64 + sq as usize];
+                    ts &= !behind;
+                    b &= !behind;
+                }
+                for to in iter_one_positions(ts) {
+                    result.push(Move::new(
+                        from, to,
+                        kind as u32, kind as u32,
+                        self.get_opt_kind(to as i8), 8));
+                }
+            }
+        }
     }
 }
 
@@ -380,11 +573,60 @@ pub struct UndoEntry {
     ep_file: u8,
 }
 
+#[derive(Clone, Copy)]
+struct SlidingEntry {
+    attack: u64,
+    mask: u64,
+}
+
+fn blockers_and_beyond(from: i8, deltas: &[(i8, i8)]) -> u64 {
+    let rank = from / 8;
+    let file = from % 8;
+    let mut result = 0;
+    for &(dr, df) in deltas {
+        let mut r = rank + 2 * dr;
+        let mut f = file + 2 * df;
+        while 0 <= r && r < 8 && 0 <= f && f < 8 {
+            result |= 1 << ((r - dr) * 8 + (f - df));
+            r += dr;
+            f += df;
+        }
+    }
+    result
+}
+
+fn compute_behind(from: i8, to: i8) -> Option<u64> {
+    if from == to {
+        return None;
+    }
+    let dr = to / 8 - from / 8;
+    let df = to % 8 - from % 8;
+    if dr != 0 && df != 0 && dr.abs() != df.abs() {
+        return None;
+    }
+    let dr = dr.signum();
+    let df = df.signum();
+    let mut result = 0;
+    let mut r = to / 8 + dr;
+    let mut f = to % 8 + df;
+    while 0 <= r && r < 8 && 0 <= f && f < 8 {
+        result |= 1 << (r * 8 + f);
+        r += dr;
+        f += df;
+    }
+    Some(result)
+}
+
 struct Precomputed {
     zobrist: [u64; 6 * 2 * 64],
     zobrist_castling: [u64; 16],
     zobrist_black_to_play: u64,
     zobrist_ep: [u64; 9],
+
+    knight_attacks: [u64; 64],
+    king_attacks: [u64; 64],
+    sliding: [SlidingEntry; 3 * 64],
+    behind: [u64; 64 * 64],
 }
 
 impl Precomputed {
@@ -404,11 +646,53 @@ impl Precomputed {
         for x in &mut zobrist_ep[..] {
             *x = rng.gen();
         }
+
+        let mut knight_attacks = [0; 64];
+        let mut king_attacks = [0; 64];
+        let mut sliding = [SlidingEntry { attack: 0, mask: 0 }; 3 * 64];
+        for from in 0..64 {
+            sliding[0 * 64 + from].mask = blockers_and_beyond(from as i8, &crate::moves::BISHOP_DELTAS);
+            sliding[1 * 64 + from].mask = blockers_and_beyond(from as i8, &crate::moves::ROOK_DELTAS);
+            sliding[2 * 64 + from].mask = blockers_and_beyond(from as i8, &crate::moves::QUEEN_DELTAS);
+            for to in 0..64 {
+                if from == to {
+                    continue;
+                }
+                let dr = (from as i8 / 8 - to as i8 / 8).abs();
+                let df = (from as i8 % 8 - to as i8 % 8).abs();
+                if dr.min(df) == 1 && dr.max(df) == 2 {
+                    knight_attacks[from] |= 1 << to;
+                }
+                if dr.max(df) == 1 {
+                    king_attacks[from] |= 1 << to;
+                }
+                if dr == df {
+                    sliding[0 * 64 + from].attack |= 1 << to;
+                }
+                if dr == 0 || df == 0 {
+                    sliding[1 * 64 + from].attack |= 1 << to;
+                }
+                if dr == df || dr == 0 || df == 0 {
+                    sliding[2 * 64 + from].attack |= 1 << to;
+                }
+            }
+        }
+        let mut behind = [0; 64 * 64];
+        for from in 0..64 {
+            for to in 0..64 {
+                behind[from * 64 + to] = compute_behind(from as i8, to as i8).unwrap_or(0);
+            }
+        }
+
         Precomputed {
             zobrist,
             zobrist_castling,
             zobrist_black_to_play: rng.gen(),
             zobrist_ep,
+            knight_attacks,
+            king_attacks,
+            sliding,
+            behind,
         }
     }
 }
@@ -419,6 +703,7 @@ lazy_static::lazy_static! {
 
 pub fn verify(mut b: BoardState) {
     let mut s: State = (&b).into();
+    assert!(s.check());
     b.clear_irrelevant_en_passant_square();
     let b2: BoardState = (&s).into();
     assert_eq!(b, b2);
@@ -426,14 +711,34 @@ pub fn verify(mut b: BoardState) {
     let mut undo_log = Vec::new();
     let s0 = s.clone();
 
-    let all_moves = b.all_moves().into_iter().map(Option::Some).chain(Some(None));
+    let all_gmoves: Vec<_> =
+        b.all_moves().into_iter().map(Option::Some)
+        .chain(Some(None))
+        .collect();
+    for &gm in &all_gmoves {
+        assert_eq!(gm, Move::from_simple_move(gm, &s).to_simple_move());
+    }
 
-    for gm in all_moves {
+    let expected_all_moves: Vec<Move> = all_gmoves.iter()
+        .map(|&gm| Move::from_simple_move(gm, &s))
+        .collect();
+    let mut all_moves = Vec::new();
+    all_moves.push(Move::null());
+    s.all_moves(&mut all_moves);
+    for &m in &all_moves {
+        assert!(expected_all_moves.contains(&m), "{:?} ({:?})", m, m.to_simple_move());
+    }
+    for &m in &expected_all_moves {
+        assert!(all_moves.contains(&m), "{:?} ({:?})", m, m.to_simple_move());
+    }
+
+    for gm in all_gmoves {
         info!("{:#?}", b.render());
         info!("{:?}", gm);
-        let m = gm.map_or(Move::null(), |gm| Move::from_simple_move(gm, &s));
+        let m = Move::from_simple_move(gm, &s);
 
         s.make_move(m, &mut undo_log);
+        assert!(s.check());
         let mut b2: BoardState = b.clone();
         b2.make_move(gm, &mut crate::obs::NullObs);
         b2.clear_irrelevant_en_passant_square();
@@ -444,4 +749,23 @@ pub fn verify(mut b: BoardState) {
         s.unmake_move(m, &mut undo_log);
         assert_eq!(s, s0);
     }
+}
+
+struct BitsIter(u64);
+
+impl Iterator for BitsIter {
+    type Item = u64;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == 0 {
+            None
+        } else {
+            let res = self.0 & self.0.wrapping_neg();
+            self.0 &= self.0 - 1;
+            Some(res)
+        }
+    }
+}
+
+pub fn iter_one_positions(x: u64) -> impl Iterator<Item=u32> {
+    BitsIter(x).map(u64::trailing_zeros)
 }
