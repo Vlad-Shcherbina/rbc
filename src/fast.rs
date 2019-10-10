@@ -279,41 +279,45 @@ impl State {
             self.by_kind[cap as usize - 1] ^= to_bit;
             self.hash ^= pre.zobrist[((cap as usize - 1) * 2 + 1 - c as usize) * 64 + m.to() as usize];
         } else {
-            if m.0 & 32767 == 0b101_000110_000100 {  // White OO
-                debug_assert_eq!(c, 0);
-                self.by_color[0] ^= 1 << 7 | 1 << 5;
-                let r = PieceKind::Rook as usize;
-                self.by_kind[r] ^= 1 << 7 | 1 << 5;
-                self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 7] ^
-                             pre.zobrist[(r * 2 + 0) * 64 + 5];
-            } else if m.0 & 32767 == 0b101_111110_111100 {  // Black OO
-                debug_assert_eq!(c, 1);
-                self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                let r = PieceKind::Rook as usize;
-                self.by_kind[r] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 7] ^
-                             pre.zobrist[(r * 2 + 1) * 64 + 56 + 5];
-            } else if m.0 & 32767 == 0b101_000010_000100 {  // White OOO
-                debug_assert_eq!(c, 0);
-                self.by_color[0] ^= 1 << 0 | 1 << 3;
-                let r = PieceKind::Rook as usize;
-                self.by_kind[r] ^= 1 << 0 | 1 << 3;
-                self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 0] ^
-                             pre.zobrist[(r * 2 + 0) * 64 + 3];
-            } else if m.0 & 32767 == 0b101_111010_111100 {  // Black OOO
-                debug_assert_eq!(c, 1);
-                self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                let r = PieceKind::Rook as usize;
-                self.by_kind[r] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 0] ^
-                             pre.zobrist[(r * 2 + 1) * 64 + 56 + 3];
+            if m.from_kind() == 5 {
+                let from_to = m.0 & 0b111111_111111;
+                if from_to == 0b000110_000100 {  // White OO
+                    debug_assert_eq!(c, 0);
+                    self.by_color[0] ^= 1 << 7 | 1 << 5;
+                    let r = PieceKind::Rook as usize;
+                    self.by_kind[r] ^= 1 << 7 | 1 << 5;
+                    self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 7] ^
+                                 pre.zobrist[(r * 2 + 0) * 64 + 5];
+                } else if from_to == 0b111110_111100 {  // Black OO
+                    debug_assert_eq!(c, 1);
+                    self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                    let r = PieceKind::Rook as usize;
+                    self.by_kind[r] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                    self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 7] ^
+                                 pre.zobrist[(r * 2 + 1) * 64 + 56 + 5];
+                } else if from_to == 0b000010_000100 {  // White OOO
+                    debug_assert_eq!(c, 0);
+                    self.by_color[0] ^= 1 << 0 | 1 << 3;
+                    let r = PieceKind::Rook as usize;
+                    self.by_kind[r] ^= 1 << 0 | 1 << 3;
+                    self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 0] ^
+                                 pre.zobrist[(r * 2 + 0) * 64 + 3];
+                } else if from_to == 0b111010_111100 {  // Black OOO
+                    debug_assert_eq!(c, 1);
+                    self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                    let r = PieceKind::Rook as usize;
+                    self.by_kind[r] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                    self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 0] ^
+                                 pre.zobrist[(r * 2 + 1) * 64 + 56 + 3];
+                }
             } else if self.ep_file < 8 {
-                if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b0_000_101000 + self.ep_file as u32 {
+                let t = ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9);
+                if t == 0b0_000_101000 + self.ep_file as u32 {
                     // white ep capture
                     self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
                     self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
                     self.hash ^= pre.zobrist[1 * 64 + 4 * 8 + self.ep_file as usize];
-                } else if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b1_000_010000 + self.ep_file as u32 {
+                } else if t == 0b1_000_010000 + self.ep_file as u32 {
                     // black ep capture
                     self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
                     self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
