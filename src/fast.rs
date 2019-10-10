@@ -402,22 +402,25 @@ impl State {
             self.by_color[1 - c as usize] ^= to_bit;
             self.by_kind[cap as usize - 1] ^= to_bit;
         } else {
-            if m.0 & 32767 == 0b101_000110_000100 {  // White OO
-                debug_assert_eq!(c, 0);
-                self.by_color[0] ^= 1 << 7 | 1 << 5;
-                self.by_kind[PieceKind::Rook as usize] ^= 1 << 7 | 1 << 5;
-            } else if m.0 & 32767 == 0b101_111110_111100 {  // Black OO
-                debug_assert_eq!(c, 1);
-                self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 7 | 1 << 56 + 5;
-            } else if m.0 & 32767 == 0b101_000010_000100 {  // White OOO
-                debug_assert_eq!(c, 0);
-                self.by_color[0] ^= 1 << 0 | 1 << 3;
-                self.by_kind[PieceKind::Rook as usize] ^= 1 << 0 | 1 << 3;
-            } else if m.0 & 32767 == 0b101_111010_111100 {  // Black OOO
-                debug_assert_eq!(c, 1);
-                self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 0 | 1 << 56 + 3;
+            if m.from_kind() == 5 {
+                let from_to = m.0 & 0b111111_111111;
+                if from_to == 0b000110_000100 {  // White OO
+                    debug_assert_eq!(c, 0);
+                    self.by_color[0] ^= 1 << 7 | 1 << 5;
+                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 7 | 1 << 5;
+                } else if from_to == 0b111110_111100 {  // Black OO
+                    debug_assert_eq!(c, 1);
+                    self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                } else if from_to == 0b000010_000100 {  // White OOO
+                    debug_assert_eq!(c, 0);
+                    self.by_color[0] ^= 1 << 0 | 1 << 3;
+                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 0 | 1 << 3;
+                } else if from_to == 0b111010_111100 {  // Black OOO
+                    debug_assert_eq!(c, 1);
+                    self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                }
             } else if self.ep_file < 8 {
                 if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b0_000_101000 + self.ep_file as u32 {
                     // white ep capture
