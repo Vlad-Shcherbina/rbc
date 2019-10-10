@@ -92,6 +92,7 @@ fn test_standing_pat() {
 pub struct Ctx {
     state: crate::fast::State,
     undo_log: Vec<crate::fast::UndoEntry>,
+    moves: Vec<crate::fast::Move>,
     ply: usize,
     leftmost: bool,
     pub pvs: Vec<Vec<Move>>,
@@ -108,6 +109,7 @@ impl Ctx {
         Ctx {
             state: (&board).into(),
             undo_log: Vec::new(),
+            moves: Vec::new(),
             ply: 0,
             leftmost: true,
             pvs: Vec::new(),
@@ -154,10 +156,9 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         return (10000 - 1 - ctx.ply as i32).max(alpha).min(beta);
     }
 
-    let mut all_moves = Vec::with_capacity(128);
+    let moves_start = ctx.moves.len();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
-    if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
-        ctx.state.all_attacks(&mut all_moves);
+    let moves_end = if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
         ctx.q_branch += 1;
         let static_val = if ctx.expensive_eval {
             standing_pat(&mut ctx.state, color)
@@ -175,8 +176,9 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
             tree_println!(ctx, "standing pat no imp {}", static_val);
         }
 
-        let mut ranked_moves: Vec<(crate::fast::Move, i32)> = Vec::with_capacity(all_moves.len());
-        for &m in &all_moves {
+        ctx.state.all_attacks(&mut ctx.moves);
+        let mut ranked_moves: Vec<(crate::fast::Move, i32)> = Vec::with_capacity(ctx.moves[moves_start..].len());
+        for &m in &ctx.moves[moves_start..] {
             let cap2 = ctx.state.get_piece(m.to_sq()).unwrap();
             ctx.state.make_move(m, &mut ctx.undo_log);
             let rank = material_value(cap2.kind) - see(&mut ctx.state, &mut ctx.undo_log, m.to_sq(), color.opposite());
@@ -186,23 +188,27 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
             }
         }
         ranked_moves.sort_by_key(|&(_, rank)| -rank);
-        all_moves.clear();
+        ctx.moves.truncate(moves_start);
         for (m, _) in ranked_moves {
-            all_moves.push(m);
+            ctx.moves.push(m);
         }
+        ctx.moves.len()
     } else {
-        ctx.state.all_moves(&mut all_moves);
+        ctx.state.all_moves(&mut ctx.moves);
         ctx.full_branch += 1;
-    }
+        ctx.moves.len()
+    };
     if ctx.leftmost && ctx.ply < ctx.suggested_pv.len() {
-        if let Some(i) = all_moves.iter().position(|&m| m.to_simple_move().unwrap() == ctx.suggested_pv[ctx.ply]) {
-            all_moves.swap(0, i);
+        if let Some(i) = ctx.moves[moves_start..].iter().position(|&m| m.to_simple_move().unwrap() == ctx.suggested_pv[ctx.ply]) {
+            ctx.moves.swap(moves_start, moves_start + i);
         }
     }
-    for m in all_moves {
+    for i in moves_start..moves_end {
+        let m = ctx.moves[i];
         ctx.state.make_move(m, &mut ctx.undo_log);
         ctx.ply += 1;
         let t = -search((depth - 1).max(0), -beta, -alpha, ctx);
+        assert_eq!(ctx.moves.len(), moves_end);
         ctx.ply -= 1;
         ctx.state.unmake_move(m, &mut ctx.undo_log);
         ctx.leftmost = false;
@@ -217,6 +223,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         }
         if t >= beta {
             tree_println!(ctx, "ev {:?} cutoff {}", m, t);
+            ctx.moves.truncate(moves_start);
             return beta;
         }
         if t > alpha {
@@ -226,6 +233,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
             tree_println!(ctx, "ev {:?} no imp {}", m, t);
         }
     }
+    ctx.moves.truncate(moves_start);
     alpha
 }
 
