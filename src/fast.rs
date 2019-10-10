@@ -681,6 +681,50 @@ impl State {
     }
 
     #[inline(never)]
+    pub fn mobility(&self, color: Color) -> i32 {
+        let color = color as usize;
+        let pre: &Precomputed = &PRECOMPUTED;
+        let mine = self.by_color[color];
+        let occ = self.by_color[0] | self.by_color[1];
+        let mut result = 0;
+
+        for from in iter_one_positions(mine & self.by_kind[PieceKind::Knight as usize]) {
+            let tos = pre.knight_attacks[from as usize] & occ;
+            result += 3 * tos.count_ones();
+        }
+        for from in iter_one_positions(mine & self.by_kind[PieceKind::King as usize]) {
+            let tos = pre.king_attacks[from as usize] & occ;
+            result += tos.count_ones();
+        }
+
+        for kind in 2..5 {
+            for from in iter_one_positions(mine & self.by_kind[kind]) {
+                let SlidingEntry {
+                    attack: mut ts,
+                    mask: mut b
+                } = pre.sliding[(kind - 2) * 64 + from as usize];
+                ts &= occ;
+                b &= occ;
+                while b != 0 && ts != 0 {
+                    let sq = (b & b.wrapping_neg()).trailing_zeros();
+                    b &= b - 1;
+                    let behind = pre.behind[from as usize * 64 + sq as usize];
+                    ts &= !behind;
+                    b &= !behind;
+                }
+                result += ts.count_ones() * match kind {
+                    2 => 3,
+                    3 => 2,
+                    4 => 1,
+                    _ => unreachable!(),
+                };
+            }
+        }
+
+        result as i32
+    }
+
+    #[inline(never)]
     pub fn can_attack_to(&self, to: Square, color: crate::game::Color) -> bool {
         let color = color as usize;
         let bit = 1u64 << to.0;
