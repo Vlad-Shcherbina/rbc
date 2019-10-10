@@ -32,6 +32,9 @@ impl Move {
     fn to(self) -> u32 {
         (self.0 >> 6) & 63
     }
+    pub fn to_sq(self) -> Square {
+        Square(self.to() as i8)
+    }
     fn from_kind(self) -> u32 {
         (self.0 >> 12) & 7
     }
@@ -61,7 +64,7 @@ impl Move {
         let cap = s.get_opt_kind(m.to.0);
         let mut ep_file = 8;
         if from_kind == PieceKind::Pawn as u32 {
-            let c = 1 - s.side_to_play();
+            let c = 1 - s.side_to_play_();
             let epf = m.from.0 & 7;
             if (m.to.0 - m.from.0).abs() == 16 {
                 let mask = ((0b101 << (epf + 3 * 8 - 1)) & 0x000000_ff000000)
@@ -81,7 +84,7 @@ impl Move {
         )
     }
 
-    fn to_simple_move(self) -> Option<crate::game::Move> {
+    pub fn to_simple_move(self) -> Option<crate::game::Move> {
         if self == Move::null() {
             return None;
         }
@@ -199,8 +202,40 @@ impl State {
         }
     }
 
-    fn side_to_play(&self) -> u8 {
+    fn side_to_play_(&self) -> u8 {
         self.flags >> 4
+    }
+
+    pub fn side_to_play(&self) -> Color {
+        match self.side_to_play_() {
+            0 => Color::White,
+            1 => Color::Black,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn get_piece(&self, sq: Square) -> Option<Piece> {
+        let bit = 1 << sq.0;
+        let color = if self.by_color[0] & bit != 0 {
+            Color::White
+        } else if self.by_color[1] & bit != 0 {
+            Color::Black
+        } else {
+            return None;
+        };
+        let kind = self.get_opt_kind(sq.0);
+        assert!(kind > 0);
+        let kind = PieceKind::from_int(kind - 1);
+        Some(Piece { color, kind })
+    }
+
+    pub fn find_king(&self, color: Color) -> Option<Square> {
+        let ks = self.by_color[color as usize] & self.by_kind[PieceKind::King as usize];
+        if ks == 0 {
+            None
+        } else {
+            Some(Square(ks.trailing_zeros() as i8))
+        }
     }
 
     fn get_kind(&self, sq: i8) -> u32 {
@@ -235,7 +270,7 @@ impl State {
             let kind = self.get_kind(sq);
             result ^= pre.zobrist[(kind as usize * 2 + color as usize) * 64 + sq as usize];
         }
-        result ^= self.side_to_play() as u64 * pre.zobrist_black_to_play;
+        result ^= self.side_to_play_() as u64 * pre.zobrist_black_to_play;
         result ^= pre.zobrist_castling[(self.flags & 15) as usize];
         result ^= pre.zobrist_ep[self.ep_file as usize];
         result
@@ -266,7 +301,7 @@ impl State {
         self.hash ^= pre.zobrist_castling[(self.flags & 15) as usize];
         let from_bit = 1 << m.from();
         let to_bit = 1 << m.to();
-        let c = self.side_to_play();
+        let c = self.side_to_play_();
         self.by_color[c as usize] ^= from_bit ^ to_bit;
         self.by_kind[m.from_kind() as usize] ^= from_bit;
         self.by_kind[m.to_kind() as usize] ^= to_bit;
@@ -355,7 +390,7 @@ impl State {
 
         let from_bit = 1 << m.from();
         let to_bit = 1 << m.to();
-        let c = self.side_to_play();
+        let c = self.side_to_play_();
         self.by_color[c as usize] ^= from_bit ^ to_bit;
         self.by_kind[m.from_kind() as usize] ^= from_bit;
         self.by_kind[m.to_kind() as usize] ^= to_bit;
@@ -398,7 +433,7 @@ impl State {
     #[inline(never)]
     pub fn all_moves(&self, result: &mut Vec<Move>) {
         let occ = self.by_color[0] | self.by_color[1];
-        if self.side_to_play() == 0 {
+        if self.side_to_play_() == 0 {
             // pushes
             let my_pawns = self.by_color[0] & self.by_kind[0];
             let froms = my_pawns & (!occ >> 8);
@@ -527,7 +562,7 @@ impl State {
         }
 
         let pre: &Precomputed = &PRECOMPUTED;
-        let mine = self.by_color[self.side_to_play() as usize];
+        let mine = self.by_color[self.side_to_play_() as usize];
         for from in iter_one_positions(mine & self.by_kind[PieceKind::Knight as usize]) {
             for to in iter_one_positions(pre.knight_attacks[from as usize] & !mine) {
                 result.push(Move::new(
@@ -572,8 +607,8 @@ impl State {
 
     #[inline(never)]
     pub fn all_attacks(&self, result: &mut Vec<Move>) {
-        let targets = self.by_color[1 - self.side_to_play() as usize];
-        if self.side_to_play() == 0 {
+        let targets = self.by_color[1 - self.side_to_play_() as usize];
+        if self.side_to_play_() == 0 {
             let my_pawns = self.by_color[0] & self.by_kind[0];
 
             // captures right
@@ -632,7 +667,7 @@ impl State {
         }
 
         let pre: &Precomputed = &PRECOMPUTED;
-        let mine = self.by_color[self.side_to_play() as usize];
+        let mine = self.by_color[self.side_to_play_() as usize];
         for from in iter_one_positions(mine & self.by_kind[PieceKind::Knight as usize]) {
             for to in iter_one_positions(pre.knight_attacks[from as usize] & targets) {
                 let cap = self.get_opt_kind(to as i8);
@@ -681,6 +716,19 @@ impl State {
     }
 
     #[inline(never)]
+    pub fn material(&self, color: Color) -> i32 {
+        let mine = self.by_color[color as usize];
+        (
+            (mine & self.by_kind[PieceKind::Pawn as usize]).count_ones() * 100 +
+            (mine & self.by_kind[PieceKind::Knight as usize]).count_ones() * 350 +
+            (mine & self.by_kind[PieceKind::Bishop as usize]).count_ones() * 350 +
+            (mine & self.by_kind[PieceKind::Rook as usize]).count_ones() * 525 +
+            (mine & self.by_kind[PieceKind::Queen as usize]).count_ones() * 1000 +
+            (mine & self.by_kind[PieceKind::King as usize]).count_ones() * 10000
+        ) as i32
+    }
+
+    #[inline(never)]
     pub fn mobility(&self, color: Color) -> i32 {
         let color = color as usize;
         let pre: &Precomputed = &PRECOMPUTED;
@@ -689,11 +737,11 @@ impl State {
         let mut result = 0;
 
         for from in iter_one_positions(mine & self.by_kind[PieceKind::Knight as usize]) {
-            let tos = pre.knight_attacks[from as usize] & occ;
+            let tos = pre.knight_attacks[from as usize];
             result += 3 * tos.count_ones();
         }
         for from in iter_one_positions(mine & self.by_kind[PieceKind::King as usize]) {
-            let tos = pre.king_attacks[from as usize] & occ;
+            let tos = pre.king_attacks[from as usize];
             result += tos.count_ones();
         }
 
@@ -703,9 +751,8 @@ impl State {
                     attack: mut ts,
                     mask: mut b
                 } = pre.sliding[(kind - 2) * 64 + from as usize];
-                ts &= occ;
                 b &= occ;
-                while b != 0 && ts != 0 {
+                while b != 0 {
                     let sq = (b & b.wrapping_neg()).trailing_zeros();
                     b &= b - 1;
                     let behind = pre.behind[from as usize * 64 + sq as usize];
