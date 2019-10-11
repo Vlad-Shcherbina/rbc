@@ -11,22 +11,24 @@ fn main() {
     let mut prev_nodes = 1;
     let mut pv = Vec::new();
     let timer = std::time::Instant::now();
-    for depth in 0..6 {
-        let mut ctx = rbc::eval::Ctx::new(board.clone());
-        ctx.expensive_eval = true;
+    let mut ctx = rbc::eval::Ctx::new(board.clone());
+    ctx.expensive_eval = true;
+    for depth in 0..7 {
+        ctx.reset(board.clone());
         ctx.suggested_pv = pv;
         let timer = std::time::Instant::now();
         let val = rbc::eval::search(depth, -10000, 10000, &mut ctx);
         println!("{:>2} {:>6.2}s {:>9} {:>5.1} {:>4} {:?}",
             depth, timer.elapsed().as_secs_f64(),
-            ctx.nodes, ctx.nodes as f64 / prev_nodes as f64,
+            ctx.stats.nodes, ctx.stats.nodes as f64 / prev_nodes as f64,
             val, ctx.pvs[0]);
-        total_nodes += ctx.nodes;
-        prev_nodes = ctx.nodes;
+        total_nodes += ctx.stats.nodes;
+        prev_nodes = ctx.stats.nodes;
 
         // dbg!(ctx.full_branch);
         // dbg!(ctx.q_branch);
         pv = ctx.pvs[0].clone();
     }
-    println!("{:.0} ns per node", 1e9 * timer.elapsed().as_secs_f64() / total_nodes as f64)
+    dbg!(&ctx.stats);
+    println!("{:.0} ns per node", 1e9 * timer.elapsed().as_secs_f64() / total_nodes as f64);
 }

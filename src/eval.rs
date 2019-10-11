@@ -89,19 +89,36 @@ fn test_standing_pat() {
     dbg!(s.mobility(Color::Black));
 }
 
+#[derive(Clone)]
+struct TtEntry {
+    hash: u64,
+    best_move: crate::fast::Move,
+}
+
+#[derive(Debug, Default)]
+pub struct Stats {
+    pub nodes: i64,
+    pub full_branch: i64,
+    pub q_branch: i64,
+    pub tt_add_exact: i64,
+    pub tt_add_beta_cutoff: i64,
+    pub tt_miss: i64,
+    pub tt_use_best_move: i64,
+    pub tt_best_move_not_found: i64,
+}
+
 pub struct Ctx {
     state: crate::fast::State,
     undo_log: Vec<crate::fast::UndoEntry>,
     moves: Vec<crate::fast::Move>,
+    tt: Vec<TtEntry>,
     ply: usize,
     leftmost: bool,
     pub pvs: Vec<Vec<Move>>,
     pub suggested_pv: Vec<Move>,
     pub print: bool,
     pub expensive_eval: bool,
-    pub nodes: i64,
-    pub full_branch: i64,
-    pub q_branch: i64,
+    pub stats: Stats,
 }
 
 impl Ctx {
@@ -110,16 +127,25 @@ impl Ctx {
             state: (&board).into(),
             undo_log: Vec::new(),
             moves: Vec::new(),
+            tt: vec![TtEntry {
+                hash: 0,
+                best_move: crate::fast::Move::null(),
+            }; 1 << 20],
             ply: 0,
             leftmost: true,
             pvs: Vec::new(),
             suggested_pv: Vec::new(),
             print: false,
             expensive_eval: false,
-            nodes: 0,
-            full_branch: 0,
-            q_branch: 0,
+            stats: Stats::default(),
         }
+    }
+    pub fn reset(&mut self, board: BoardState) {
+        assert_eq!(self.ply, 0);
+        self.leftmost = true;
+        assert!(self.undo_log.is_empty());
+        assert!(self.moves.is_empty());
+        self.state = (&board).into();
     }
 }
 
@@ -138,7 +164,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         ctx.pvs.push(Vec::new());
     }
     ctx.pvs[ctx.ply].clear();
-    ctx.nodes += 1;
+    ctx.stats.nodes += 1;
 
     let color = ctx.state.side_to_play();
     let king = match ctx.state.find_king(color) {
@@ -159,7 +185,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     let moves_start = ctx.moves.len();
     tree_println!(ctx, "alpha={} beta={}", alpha, beta);
     let moves_end = if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
-        ctx.q_branch += 1;
+        ctx.stats.q_branch += 1;
         let static_val = if ctx.expensive_eval {
             standing_pat(&mut ctx.state, color)
         } else {
@@ -195,14 +221,29 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         ctx.moves.len()
     } else {
         ctx.state.all_moves(&mut ctx.moves);
-        ctx.full_branch += 1;
+        ctx.stats.full_branch += 1;
         ctx.moves.len()
     };
+    if depth >= 1 {
+        let idx = ctx.state.hash() as usize & ctx.tt.len() - 1;
+        let tt_entry = &ctx.tt[idx];
+        if tt_entry.hash == ctx.state.hash() {
+            if let Some(i) = ctx.moves[moves_start..].iter().position(|&m| m == tt_entry.best_move) {
+                ctx.moves.swap(moves_start, moves_start + i);
+                ctx.stats.tt_use_best_move += 1;
+            } else {
+                ctx.stats.tt_best_move_not_found += 1;
+            }
+        } else {
+            ctx.stats.tt_miss += 1;
+        }
+    }
     if ctx.leftmost && ctx.ply < ctx.suggested_pv.len() {
         if let Some(i) = ctx.moves[moves_start..].iter().position(|&m| m.to_simple_move().unwrap() == ctx.suggested_pv[ctx.ply]) {
             ctx.moves.swap(moves_start, moves_start + i);
         }
     }
+    let mut best_move = crate::fast::Move::null();
     for i in moves_start..moves_end {
         let m = ctx.moves[i];
         ctx.state.make_move(m, &mut ctx.undo_log);
@@ -213,6 +254,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         ctx.state.unmake_move(m, &mut ctx.undo_log);
         ctx.leftmost = false;
         if t > alpha {
+            best_move = m;
             ctx.pvs[ctx.ply].clear();
             ctx.pvs[ctx.ply].push(m.to_simple_move().unwrap());
 
@@ -223,6 +265,15 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         }
         if t >= beta {
             tree_println!(ctx, "ev {:?} cutoff {}", m, t);
+
+            if depth >= 1 {
+                let idx = ctx.state.hash() as usize & ctx.tt.len() - 1;
+                let mut tt_entry = &mut ctx.tt[idx];
+                tt_entry.hash = ctx.state.hash();
+                tt_entry.best_move = best_move;
+                ctx.stats.tt_add_beta_cutoff += 1;
+            }
+
             ctx.moves.truncate(moves_start);
             return beta;
         }
@@ -234,6 +285,16 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         }
     }
     ctx.moves.truncate(moves_start);
+
+    assert!(alpha < beta);
+    if depth >= 1 && best_move != crate::fast::Move::null() {
+        let idx = ctx.state.hash() as usize & ctx.tt.len() - 1;
+        let mut tt_entry = &mut ctx.tt[idx];
+        tt_entry.hash = ctx.state.hash();
+        tt_entry.best_move = best_move;
+        ctx.stats.tt_add_exact += 1;
+    }
+
     alpha
 }
 

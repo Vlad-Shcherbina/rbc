@@ -48,7 +48,7 @@ impl Move {
         (self.0 >> 21) & 15
     }
 
-    fn null() -> Move {
+    pub fn null() -> Move {
         Move::new(1, 1, 0, 0, 0, 8)
     }
 
@@ -212,6 +212,10 @@ impl State {
             1 => Color::Black,
             _ => unreachable!(),
         }
+    }
+
+    pub fn hash(&self) -> u64 {
+        self.hash
     }
 
     pub fn get_piece(&self, sq: Square) -> Option<Piece> {
