@@ -113,9 +113,7 @@ pub struct Ctx {
     moves: Vec<crate::fast::Move>,
     tt: Vec<TtEntry>,
     ply: usize,
-    leftmost: bool,
     pub pvs: Vec<Vec<Move>>,
-    pub suggested_pv: Vec<Move>,
     pub print: bool,
     pub expensive_eval: bool,
     pub stats: Stats,
@@ -132,9 +130,7 @@ impl Ctx {
                 best_move: crate::fast::Move::null(),
             }; 1 << 20],
             ply: 0,
-            leftmost: true,
             pvs: Vec::new(),
-            suggested_pv: Vec::new(),
             print: false,
             expensive_eval: false,
             stats: Stats::default(),
@@ -142,7 +138,6 @@ impl Ctx {
     }
     pub fn reset(&mut self, board: BoardState) {
         assert_eq!(self.ply, 0);
-        self.leftmost = true;
         assert!(self.undo_log.is_empty());
         assert!(self.moves.is_empty());
         self.state = (&board).into();
@@ -238,11 +233,6 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
             ctx.stats.tt_miss += 1;
         }
     }
-    if ctx.leftmost && ctx.ply < ctx.suggested_pv.len() {
-        if let Some(i) = ctx.moves[moves_start..].iter().position(|&m| m.to_simple_move().unwrap() == ctx.suggested_pv[ctx.ply]) {
-            ctx.moves.swap(moves_start, moves_start + i);
-        }
-    }
     let mut best_move = crate::fast::Move::null();
     for i in moves_start..moves_end {
         let m = ctx.moves[i];
@@ -252,7 +242,6 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
         assert_eq!(ctx.moves.len(), moves_end);
         ctx.ply -= 1;
         ctx.state.unmake_move(m, &mut ctx.undo_log);
-        ctx.leftmost = false;
         if t > alpha {
             best_move = m;
             ctx.pvs[ctx.ply].clear();

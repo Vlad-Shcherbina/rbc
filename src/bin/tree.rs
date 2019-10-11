@@ -9,13 +9,11 @@ fn main() {
     dbg!(board.render());
     let mut total_nodes = 0;
     let mut prev_nodes = 1;
-    let mut pv = Vec::new();
     let timer = std::time::Instant::now();
     let mut ctx = rbc::eval::Ctx::new(board.clone());
     ctx.expensive_eval = true;
     for depth in 0..7 {
         ctx.reset(board.clone());
-        ctx.suggested_pv = pv;
         let timer = std::time::Instant::now();
         let val = rbc::eval::search(depth, -10000, 10000, &mut ctx);
         println!("{:>2} {:>6.2}s {:>9} {:>5.1} {:>4} {:?}",
@@ -27,7 +25,6 @@ fn main() {
 
         // dbg!(ctx.full_branch);
         // dbg!(ctx.q_branch);
-        pv = ctx.pvs[0].clone();
     }
     dbg!(&ctx.stats);
     println!("{:.0} ns per node", 1e9 * timer.elapsed().as_secs_f64() / total_nodes as f64);
