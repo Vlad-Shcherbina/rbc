@@ -67,7 +67,7 @@ impl GameState {
         }
         let board = &self.board;
         let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
-        self.last_capture_square = self.board.make_move(taken_move, &mut rbc::obs::NullObs);
+        self.last_capture_square = self.board.make_move(taken_move);
         infoset.my_move(requested_move, taken_move, self.last_capture_square);
         player.handle_move(requested_move, taken_move, self.last_capture_square, infoset, html);
 

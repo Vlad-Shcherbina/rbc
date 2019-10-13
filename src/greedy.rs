@@ -39,7 +39,7 @@ fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) 
     for state in states {
         let taken_move = state.requested_to_taken(req_move);
         let mut s2 = state.clone();
-        s2.make_move(taken_move, &mut crate::obs::NullObs);
+        s2.make_move(taken_move);
 
         let mut ctx = crate::eval::Ctx::new(s2);
         let t = -crate::eval::search(0, -beta, -alpha, &mut ctx);
@@ -275,7 +275,7 @@ impl Player for GreedyPlayer {
             for (j, &s) in states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
-                let cap = s2.make_move(taken, &mut crate::obs::NullObs);
+                let cap = s2.make_move(taken);
                 let e = eval_cache.entry(s2.clone()).or_insert_with(|| {
                     let mut ctx = crate::eval::Ctx::new(s2.clone());
                     ctx.expensive_eval = true;
@@ -332,7 +332,7 @@ impl Player for GreedyPlayer {
             for &j in &jx {
                 let mut s2 = states[j].clone();
                 let taken = s2.requested_to_taken(candidates[i]);
-                s2.make_move(taken, &mut crate::obs::NullObs);
+                s2.make_move(taken);
                 let e = &eval_cache[&s2];
                 let moves = Some(taken).into_iter().chain(e.pv.iter().cloned().map(Option::Some));
                 let moves = crate::html::moves_to_html(&states[j], moves);

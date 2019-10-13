@@ -46,14 +46,14 @@ impl BoardState {
                     self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
                 }
             }
-            let p = self.replace_piece(Square(p), None, &mut crate::obs::NullObs);
+            let p = self.replace_piece(Square(p), None);
             assert_eq!(p.unwrap().color, self.side_to_play());
         }
     }
 
     #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
-    pub fn make_move(&mut self, m: Option<Move>, obs: &mut impl crate::obs::Obs) -> Option<Square> {
+    pub fn make_move(&mut self, m: Option<Move>) -> Option<Square> {
         self.flags ^= BoardFlags::WHITE_TO_PLAY;
         let m = match m {
             Some(m) => m,
@@ -69,7 +69,7 @@ impl BoardState {
             None
         };
 
-        let mut p = self.replace_piece(m.from, None, obs);
+        let mut p = self.replace_piece(m.from, None);
         match p {
             Some(Piece { kind: PieceKind::Pawn, ..}) => {
                 if let Some(ep) = self.en_passant_square.take() {
@@ -79,7 +79,7 @@ impl BoardState {
                             Color::Black => ep.0 - 8,
                         };
                         capture_square = Some(Square(cap));
-                        self.replace_piece(Square(cap), None, obs);
+                        self.replace_piece(Square(cap), None);
                     }
                 }
 
@@ -99,22 +99,22 @@ impl BoardState {
             }
             None => panic!()
         }
-        self.replace_piece(m.to, p, obs);
+        self.replace_piece(m.to, p);
 
         if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 6 {
             assert!(self.flags.contains(BoardFlags::WHITE_CAN_OO));
             assert_eq!(self.get_piece(Square(7)).unwrap().kind, PieceKind::Rook);
             self.flags.remove(BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO);
-            let rook = self.replace_piece(Square(7), None, obs);
-            let e = self.replace_piece(Square(5), rook, obs);
+            let rook = self.replace_piece(Square(7), None);
+            let e = self.replace_piece(Square(5), rook);
             assert!(e.is_none());
         }
         if p.unwrap().kind == PieceKind::King && m.from.0 == 4 && m.to.0 == 2 {
             assert!(self.flags.contains(BoardFlags::WHITE_CAN_OOO));
             assert_eq!(self.get_piece(Square(0)).unwrap().kind, PieceKind::Rook);
             self.flags.remove(BoardFlags::WHITE_CAN_OO | BoardFlags::WHITE_CAN_OOO);
-            let rook = self.replace_piece(Square(0), None, obs);
-            let e = self.replace_piece(Square(3), rook, obs);
+            let rook = self.replace_piece(Square(0), None);
+            let e = self.replace_piece(Square(3), rook);
             assert!(e.is_none());
         }
 
@@ -122,16 +122,16 @@ impl BoardState {
             assert!(self.flags.contains(BoardFlags::BLACK_CAN_OO));
             assert_eq!(self.get_piece(Square(63)).unwrap().kind, PieceKind::Rook);
             self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
-            let rook = self.replace_piece(Square(63), None, obs);
-            let e = self.replace_piece(Square(61), rook, obs);
+            let rook = self.replace_piece(Square(63), None);
+            let e = self.replace_piece(Square(61), rook);
             assert!(e.is_none());
         }
         if p.unwrap().kind == PieceKind::King && m.from.0 == 60 && m.to.0 == 58 {
             assert!(self.flags.contains(BoardFlags::BLACK_CAN_OOO));
             assert_eq!(self.get_piece(Square(56)).unwrap().kind, PieceKind::Rook);
             self.flags.remove(BoardFlags::BLACK_CAN_OO | BoardFlags::BLACK_CAN_OOO);
-            let rook = self.replace_piece(Square(56), None, obs);
-            let e = self.replace_piece(Square(59), rook, obs);
+            let rook = self.replace_piece(Square(56), None);
+            let e = self.replace_piece(Square(59), rook);
             assert!(e.is_none());
         }
 

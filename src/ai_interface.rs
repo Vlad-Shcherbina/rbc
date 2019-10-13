@@ -109,7 +109,7 @@ impl Player for RandomPlayer {
         _html: &mut dyn Write,
     ) {
         assert_eq!(self.color, self.state.side_to_play());
-        self.state.make_move(taken, &mut crate::obs::NullObs);
+        self.state.make_move(taken);
         self.state.fog_of_war(self.color);
         info!("after move: {:#?}", self.state.render());
         std::thread::sleep(std::time::Duration::from_secs(

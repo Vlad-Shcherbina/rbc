@@ -137,7 +137,7 @@ pub fn moves_to_html(b: &BoardState, moves: impl Iterator<Item=Option<Move>>) ->
         }
         first = false;
         let mut b2 = b.clone();
-        let cap = b2.make_move(m, &mut crate::obs::NullObs);
+        let cap = b2.make_move(m);
         if let Some(m) = m {
             result.push_str(&format!(
                 r#"<span style="white-space:nowrap">{}<span class=negspace></span>{:?}"#,

@@ -34,7 +34,7 @@ impl Infoset {
             }
             for m in all_moves {
                 let mut new_state = state.clone();
-                let c = new_state.make_move(m, &mut crate::obs::NullObs);
+                let c = new_state.make_move(m);
                 if c == capture_square {
                     new_state.clear_irrelevant_en_passant_square();
                     new_possible_states.insert(new_state);
@@ -83,7 +83,7 @@ impl Infoset {
             let t = requested_move.map(|m| state.requested_to_taken(m))
                 .and_then(std::convert::identity);  // flatten
             if t == taken_move {
-                let c = state.make_move(t, &mut crate::obs::NullObs);
+                let c = state.make_move(t);
                 if c == capture_square {
                     state.clear_irrelevant_en_passant_square();
                     new_possible_states.insert(state);
@@ -91,7 +91,7 @@ impl Infoset {
             }
         }
         self.possible_states = new_possible_states.into_iter().collect();
-        self.fog_state.make_move(taken_move, &mut crate::obs::NullObs);
+        self.fog_state.make_move(taken_move);
     }
 
     #[inline(never)]

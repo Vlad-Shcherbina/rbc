@@ -41,19 +41,11 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
         let all_moves: HashSet<_> = state.all_moves().into_iter().collect();
         let all_moves_naive: HashSet<_> = state.all_moves_naive().into_iter().collect();
         assert_eq!(all_moves, all_moves_naive);
-        let big_state = rbc::obs::BigState::new(state.clone());
-        let all_moves_big: HashSet<_> = big_state.all_moves().into_iter().collect();
-        assert_eq!(all_moves_big, all_moves_naive, "{:?}", all_moves_big.symmetric_difference(&all_moves_naive));
         for sq in (0..64).map(Square) {
-            big_state.can_attack_to_for_testing(sq, state.side_to_play());
             if state.get_piece(sq).map_or(false, |p| p.color != state.side_to_play()) {
                 let all_attacks_to = state.all_attacks_to(sq, state.side_to_play());
                 for &am in &all_attacks_to {
                     assert!(all_moves.contains(&am), "{:?}", am);
-                }
-                let cheapest_attack = big_state.cheapest_attack_to_for_testing(sq, state.side_to_play());
-                if let Some(cm) = cheapest_attack {
-                    assert!(all_attacks_to.contains(&cm), "{:?}, {:#?}", cm, state.render());
                 }
             }
         }
@@ -62,7 +54,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
             assert!(all_moves.contains(&m), "{:?}", m);
         }
 
-        let capture_square = state.make_move(taken_move, &mut rbc::obs::NullObs);
+        let capture_square = state.make_move(taken_move);
         assert_eq!(capture_square, m.capture_square);
         if forgiving_en_passant &&
            state.en_passant_square.is_some() &&
@@ -112,7 +104,7 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
                 .and_then(std::convert::identity);  // flatten
             assert_eq!(predicted_taken, taken);
 
-            state.make_move(taken, &mut rbc::obs::NullObs);
+            state.make_move(taken);
             state.fog_of_war(color);
 
             assert_eq!(state, after);

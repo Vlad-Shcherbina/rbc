@@ -173,7 +173,7 @@ impl From<&State> for BoardState {
             }
             let color = if s.by_color[0] & bit != 0 { Color::White } else { Color::Black };
             let kind = PieceKind::from_int(s.get_kind(sq));
-            result.replace_piece(Square(sq), Some(Piece { color, kind }), &mut crate::obs::NullObs);
+            result.replace_piece(Square(sq), Some(Piece { color, kind }));
         }
         if s.flags & 16 == 0 { result.flags |= BoardFlags::WHITE_TO_PLAY; }
         if s.flags & 1 != 0 { result.flags |= BoardFlags::WHITE_CAN_OO; }
@@ -1211,7 +1211,7 @@ pub fn verify(mut b: BoardState) {
         s.make_move(m, &mut undo_log);
         assert!(s.check());
         let mut b2: BoardState = b.clone();
-        b2.make_move(gm, &mut crate::obs::NullObs);
+        b2.make_move(gm);
         b2.clear_irrelevant_en_passant_square();
         let s2: State = (&b2).into();
         assert_eq!(s, s2);
