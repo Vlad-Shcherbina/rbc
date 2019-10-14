@@ -34,15 +34,20 @@ struct GreedyPlayer {
     move_number: i32,
 }
 
-fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) -> i32 {
+fn move_value(
+    req_move: Move,
+    states: &[BoardState],
+    alpha: i32, mut beta: i32,
+    ctx: &mut crate::eval::Ctx,
+) -> i32 {
     assert!(alpha < beta);
     for state in states {
         let taken_move = state.requested_to_taken(req_move);
         let mut s2 = state.clone();
         s2.make_move(taken_move);
 
-        let mut ctx = crate::eval::Ctx::new(s2);
-        let t = -crate::eval::search(0, -beta, -alpha, &mut ctx);
+        ctx.reset(s2);
+        let t = -crate::eval::search(0, -beta, -alpha, ctx);
 
         if t <= alpha {
             return alpha;
@@ -52,10 +57,15 @@ fn move_value(req_move: Move, states: &[BoardState], alpha: i32, mut beta: i32) 
     beta
 }
 
-fn sr_value(moves: &[Move], states: &[BoardState], mut alpha: i32, beta: i32) -> i32 {
+fn sr_value(
+    moves: &[Move],
+    states: &[BoardState],
+    mut alpha: i32, beta: i32,
+    ctx: &mut crate::eval::Ctx,
+) -> i32 {
     assert!(alpha < beta);
     for &m in moves {
-        let t = move_value(m, states, alpha, beta);
+        let t = move_value(m, states, alpha, beta, ctx);
         if t >= beta {
             return beta;
         }
@@ -64,7 +74,12 @@ fn sr_value(moves: &[Move], states: &[BoardState], mut alpha: i32, beta: i32) ->
     alpha
 }
 
-fn info_value(squares: &[Square], fog_state: &BoardState, possible_states: &[BoardState]) -> HashMap<Square, i32> {
+fn info_value(
+    squares: &[Square],
+    fog_state: &BoardState,
+    possible_states: &[BoardState],
+    ctx: &mut crate::eval::Ctx,
+) -> HashMap<Square, i32> {
     let mut result = HashMap::new();
     let moves = fog_state.all_sensible_requested_moves();
     for &sq in squares {
@@ -75,7 +90,7 @@ fn info_value(squares: &[Square], fog_state: &BoardState, possible_states: &[Boa
         let alpha = -10000;
         let mut beta = 10000;
         for (_sr, states) in state_by_sr.iter() {
-            let t = sr_value(&moves, states, alpha, beta);
+            let t = sr_value(&moves, states, alpha, beta, ctx);
             if t <= alpha {
                 beta = alpha;
                 break;
@@ -187,7 +202,8 @@ impl Player for GreedyPlayer {
         let squares: Vec<Square> = sense_entries.keys().cloned().collect();
         info!("{} sensible sense squares", squares.len());
 
-        let iv = info_value(&squares, &infoset.fog_state, &possible_states);
+        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
+        let iv = info_value(&squares, &infoset.fog_state, &possible_states, &mut ctx);
 
         write!(html, "<table>").unwrap();
         for rank in (1..7).rev() {
