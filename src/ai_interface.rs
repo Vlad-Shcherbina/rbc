@@ -120,32 +120,3 @@ impl Player for RandomPlayer {
         String::new()
     }
 }
-
-fn random_move(rng: &mut impl RngCore, state: &BoardState) -> Move {
-    let mut from;
-    loop {
-        from = Square(rng.gen_range(0, 64));
-        let p = state.get_piece(from);
-        if p.is_some() && p.unwrap().color == state.side_to_play() {
-            break;
-        }
-    }
-    let mut to;
-    loop {
-        to = Square(rng.gen_range(0, 64));
-        let p = state.get_piece(to);
-        if p.is_some() && p.unwrap().color == state.side_to_play() {
-            continue;
-        }
-        let dr = (from.0 / 8 - to.0 / 8).abs();
-        let df = (from.0 % 8 - to.0 % 8).abs();
-        if dr == 0 || df == 0 || dr == df || dr + df == 3 {
-            break;
-        }
-    }
-    Move {
-        from,
-        to,
-        promotion: None,
-    }
-}

@@ -30,7 +30,7 @@ struct GreedyPlayer {
     rng: StdRng,
     color: Color,
     summary: Vec<u8>,
-    experiment: bool,
+    #[allow(dead_code)] experiment: bool,
     move_number: i32,
 }
 
