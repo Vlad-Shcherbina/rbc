@@ -1,3 +1,5 @@
+#![allow(clippy::unreadable_literal, clippy::inconsistent_digit_grouping, clippy::precedence)]
+
 #[macro_use] pub mod html;
 pub mod game;
 pub mod moves;

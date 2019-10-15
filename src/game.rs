@@ -167,6 +167,7 @@ impl Piece {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_int(this: Option<Piece>) -> u32 {
         match this {
             None => 0,
@@ -291,8 +292,7 @@ impl BoardState {
         let old = (self.pieces[i / 8] >> (i % 8 * 4)) & 15;
         self.pieces[i / 8] &= !(15 << (i % 8 * 4));
         self.pieces[i / 8] |= Piece::to_int(new_piece) << (i % 8 * 4);
-        let old = Piece::from_int(old);
-        old
+        Piece::from_int(old)
     }
 
     pub fn render(&self) -> Vec<String> {
@@ -466,7 +466,7 @@ impl Move {
         }
     }
 
-    pub fn to_uci(&self) -> String {
+    pub fn to_uci(self) -> String {
         let mut result = format!("{}{}", self.from.to_san(), self.to.to_san());
         if let Some(p) = self.promotion {
             result.push(p.to_char());

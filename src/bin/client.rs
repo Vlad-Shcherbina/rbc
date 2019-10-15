@@ -319,17 +319,15 @@ fn main() {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_secs(5));
-        } else {
-            if let Ok(slot_idx) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
-                let slot = slots[slot_idx].take().unwrap();
-                let (outcome, message) = slot.t.join().unwrap();
-                info!("{}", message);
-                print_slots(&slots, slot_idx, outcome);
-                println!("{}", message);
+        } else if let Ok(slot_idx) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
+            let slot = slots[slot_idx].take().unwrap();
+            let (outcome, message) = slot.t.join().unwrap();
+            info!("{}", message);
+            print_slots(&slots, slot_idx, outcome);
+            println!("{}", message);
 
-                while slots.len() > 5 && slots.last().unwrap().is_none() {
-                    slots.pop();
-                }
+            while slots.len() > 5 && slots.last().unwrap().is_none() {
+                slots.pop();
             }
         }
     }

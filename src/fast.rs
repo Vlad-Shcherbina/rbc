@@ -4,6 +4,7 @@ use crate::game::{Square, Color, PieceKind, Piece, BoardFlags, BoardState};
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Move(u32);
 
+#[allow(clippy::identity_op)]
 impl Move {
     fn new(
         from: u32, to: u32,
@@ -35,6 +36,7 @@ impl Move {
     pub fn to_sq(self) -> Square {
         Square(self.to() as i8)
     }
+    #[allow(clippy::wrong_self_convention)]
     fn from_kind(self) -> u32 {
         (self.0 >> 12) & 7
     }
@@ -191,6 +193,7 @@ impl From<&State> for BoardState {
     }
 }
 
+#[allow(clippy::identity_op, clippy::erasing_op, clippy::cognitive_complexity)]
 impl State {
     pub fn empty() -> State {
         State {
@@ -318,51 +321,49 @@ impl State {
             self.by_color[1 - c as usize] ^= to_bit;
             self.by_kind[cap as usize - 1] ^= to_bit;
             self.hash ^= pre.zobrist[((cap as usize - 1) * 2 + 1 - c as usize) * 64 + m.to() as usize];
-        } else {
-            if m.from_kind() == 5 {
-                let from_to = m.0 & 0b111111_111111;
-                if from_to == 0b000110_000100 {  // White OO
-                    debug_assert_eq!(c, 0);
-                    self.by_color[0] ^= 1 << 7 | 1 << 5;
-                    let r = PieceKind::Rook as usize;
-                    self.by_kind[r] ^= 1 << 7 | 1 << 5;
-                    self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 7] ^
-                                 pre.zobrist[(r * 2 + 0) * 64 + 5];
-                } else if from_to == 0b111110_111100 {  // Black OO
-                    debug_assert_eq!(c, 1);
-                    self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                    let r = PieceKind::Rook as usize;
-                    self.by_kind[r] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                    self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 7] ^
-                                 pre.zobrist[(r * 2 + 1) * 64 + 56 + 5];
-                } else if from_to == 0b000010_000100 {  // White OOO
-                    debug_assert_eq!(c, 0);
-                    self.by_color[0] ^= 1 << 0 | 1 << 3;
-                    let r = PieceKind::Rook as usize;
-                    self.by_kind[r] ^= 1 << 0 | 1 << 3;
-                    self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 0] ^
-                                 pre.zobrist[(r * 2 + 0) * 64 + 3];
-                } else if from_to == 0b111010_111100 {  // Black OOO
-                    debug_assert_eq!(c, 1);
-                    self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                    let r = PieceKind::Rook as usize;
-                    self.by_kind[r] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                    self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 0] ^
-                                 pre.zobrist[(r * 2 + 1) * 64 + 56 + 3];
-                }
-            } else if self.ep_file < 8 {
-                let t = ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9);
-                if t == 0b0_000_101000 + self.ep_file as u32 {
-                    // white ep capture
-                    self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
-                    self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
-                    self.hash ^= pre.zobrist[1 * 64 + 4 * 8 + self.ep_file as usize];
-                } else if t == 0b1_000_010000 + self.ep_file as u32 {
-                    // black ep capture
-                    self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
-                    self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
-                    self.hash ^= pre.zobrist[0 * 64 + 3 * 8 + self.ep_file as usize];
-                }
+        } else if m.from_kind() == 5 {
+            let from_to = m.0 & 0b111111_111111;
+            if from_to == 0b000110_000100 {  // White OO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 7 | 1 << 5;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 7 | 1 << 5;
+                self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 7] ^
+                                pre.zobrist[(r * 2 + 0) * 64 + 5];
+            } else if from_to == 0b111110_111100 {  // Black OO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 7] ^
+                                pre.zobrist[(r * 2 + 1) * 64 + 56 + 5];
+            } else if from_to == 0b000010_000100 {  // White OOO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 0 | 1 << 3;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 0 | 1 << 3;
+                self.hash ^= pre.zobrist[(r * 2 + 0) * 64 + 0] ^
+                                pre.zobrist[(r * 2 + 0) * 64 + 3];
+            } else if from_to == 0b111010_111100 {  // Black OOO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                let r = PieceKind::Rook as usize;
+                self.by_kind[r] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                self.hash ^= pre.zobrist[(r * 2 + 1) * 64 + 56 + 0] ^
+                                pre.zobrist[(r * 2 + 1) * 64 + 56 + 3];
+            }
+        } else if self.ep_file < 8 {
+            let t = ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9);
+            if t == 0b0_000_101000 + self.ep_file as u32 {
+                // white ep capture
+                self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
+                self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
+                self.hash ^= pre.zobrist[1 * 64 + 4 * 8 + self.ep_file as usize];
+            } else if t == 0b1_000_010000 + self.ep_file as u32 {
+                // black ep capture
+                self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
+                self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
+                self.hash ^= pre.zobrist[0 * 64 + 3 * 8 + self.ep_file as usize];
             }
         }
 
@@ -388,6 +389,7 @@ impl State {
     }
 
     #[inline(never)]
+    #[allow(clippy::collapsible_if)]
     pub fn unmake_move(&mut self, m: Move, undo_log: &mut Vec<UndoEntry>) {
         let u = undo_log.pop().unwrap();
         self.hash = u.hash;
@@ -405,36 +407,34 @@ impl State {
         if cap != 0 {
             self.by_color[1 - c as usize] ^= to_bit;
             self.by_kind[cap as usize - 1] ^= to_bit;
-        } else {
-            if m.from_kind() == 5 {
-                let from_to = m.0 & 0b111111_111111;
-                if from_to == 0b000110_000100 {  // White OO
-                    debug_assert_eq!(c, 0);
-                    self.by_color[0] ^= 1 << 7 | 1 << 5;
-                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 7 | 1 << 5;
-                } else if from_to == 0b111110_111100 {  // Black OO
-                    debug_assert_eq!(c, 1);
-                    self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 7 | 1 << 56 + 5;
-                } else if from_to == 0b000010_000100 {  // White OOO
-                    debug_assert_eq!(c, 0);
-                    self.by_color[0] ^= 1 << 0 | 1 << 3;
-                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 0 | 1 << 3;
-                } else if from_to == 0b111010_111100 {  // Black OOO
-                    debug_assert_eq!(c, 1);
-                    self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                    self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 0 | 1 << 56 + 3;
-                }
-            } else if self.ep_file < 8 {
-                if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b0_000_101000 + self.ep_file as u32 {
-                    // white ep capture
-                    self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
-                    self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
-                } else if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b1_000_010000 + self.ep_file as u32 {
-                    // black ep capture
-                    self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
-                    self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
-                }
+        } else if m.from_kind() == 5 {
+            let from_to = m.0 & 0b111111_111111;
+            if from_to == 0b000110_000100 {  // White OO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 7 | 1 << 5;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 7 | 1 << 5;
+            } else if from_to == 0b111110_111100 {  // Black OO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 7 | 1 << 56 + 5;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 7 | 1 << 56 + 5;
+            } else if from_to == 0b000010_000100 {  // White OOO
+                debug_assert_eq!(c, 0);
+                self.by_color[0] ^= 1 << 0 | 1 << 3;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 0 | 1 << 3;
+            } else if from_to == 0b111010_111100 {  // Black OOO
+                debug_assert_eq!(c, 1);
+                self.by_color[1] ^= 1 << 56 + 0 | 1 << 56 + 3;
+                self.by_kind[PieceKind::Rook as usize] ^= 1 << 56 + 0 | 1 << 56 + 3;
+            }
+        } else if self.ep_file < 8 {
+            if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b0_000_101000 + self.ep_file as u32 {
+                // white ep capture
+                self.by_color[1] ^= 1 << 4 * 8 + self.ep_file;
+                self.by_kind[0] ^= 1 << 4 * 8 + self.ep_file;
+            } else if ((m.0 >> 6) & 0b111_111111) + ((c as u32) << 9) == 0b1_000_010000 + self.ep_file as u32 {
+                // black ep capture
+                self.by_color[0] ^= 1 << 3 * 8 + self.ep_file;
+                self.by_kind[0] ^= 1 << 3 * 8 + self.ep_file;
             }
         }
     }
@@ -827,6 +827,7 @@ impl State {
     }
 
     #[inline(never)]
+    #[allow(clippy::collapsible_if)]
     pub fn cheapest_attack_to(&self, to: Square, color: crate::game::Color) -> Option<Move> {
         let color = color as usize;
         if color == 0 {
@@ -1053,6 +1054,7 @@ struct Precomputed {
 
 impl Precomputed {
     #[inline(never)]
+    #[allow(clippy::erasing_op, clippy::identity_op)]
     fn init() -> Precomputed {
         use rand::prelude::*;
         let mut rng = StdRng::seed_from_u64(43);
@@ -1126,6 +1128,7 @@ lazy_static::lazy_static! {
     static ref PRECOMPUTED: Precomputed = Precomputed::init();
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub fn verify(mut b: BoardState) {
     let mut s: State = (&b).into();
     assert!(s.check());
@@ -1179,7 +1182,7 @@ pub fn verify(mut b: BoardState) {
                     .collect();
                 assert_eq!(!attacks_to.is_empty(), s.can_attack_to(sq, b.side_to_play()), "{:?}", sq);
 
-                fn attacker_cost(m: &Move) -> i32 {
+                fn attacker_cost(m: Move) -> i32 {
                     match m.to_kind() {
                         0 => 100,
                         1 => 350,
@@ -1190,12 +1193,12 @@ pub fn verify(mut b: BoardState) {
                         _ => unreachable!(),
                     }
                 }
-                let expected = attacks_to.iter().cloned().min_by_key(attacker_cost);
+                let expected = attacks_to.iter().cloned().min_by_key(|&m| attacker_cost(m));
                 match (expected, s.cheapest_attack_to(sq, b.side_to_play())) {
                     (None, None) => {}
                     (Some(em), Some(m)) => {
                         assert!(attacks_to.contains(&m), "{:?}", m);
-                        assert_eq!(attacker_cost(&em), attacker_cost(&m), "{:?} {:?}", em, m);
+                        assert_eq!(attacker_cost(em), attacker_cost(m), "{:?} {:?}", em, m);
                     }
                     z => panic!("{:?} {:?}", sq, z),
                 }

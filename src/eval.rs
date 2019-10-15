@@ -153,6 +153,7 @@ macro_rules! tree_println {
     })
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     assert!(alpha < beta);
     while ctx.pvs.len() <= ctx.ply {
@@ -182,7 +183,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     let moves_end = if depth == 0 && !ctx.state.can_attack_to(king, color.opposite()) {
         ctx.stats.q_branch += 1;
         let static_val = if ctx.expensive_eval {
-            standing_pat(&mut ctx.state, color)
+            standing_pat(&ctx.state, color)
         } else {
             standing_pat_material_only(&ctx.state, color)
         };

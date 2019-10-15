@@ -1,3 +1,5 @@
+#![allow(clippy::unreadable_literal)]
+
 use std::io::Write;
 use rand::prelude::*;
 use rbc::game::{Square, Color, Move, BoardState};
