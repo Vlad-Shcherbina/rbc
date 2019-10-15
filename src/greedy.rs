@@ -118,18 +118,6 @@ fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item
     result
 }
 
-fn partition_dominates(states_by_sr: &HashMap<u32, Vec<usize>>, sr_by_state: &[u32]) -> bool {
-    for states in states_by_sr.values() {
-        let sr = sr_by_state[states[0]];
-        for &s in &states[1..] {
-            if sr_by_state[s] != sr {
-                return false;
-            }
-        }
-    }
-    true
-}
-
 impl Player for GreedyPlayer {
     fn begin(&mut self, _html: &mut dyn Write) {}
 
@@ -161,44 +149,9 @@ impl Player for GreedyPlayer {
         html.flush().unwrap();
         let timer = std::time::Instant::now();
 
-        let mut square_and_entropy = Vec::new();
-        for rank in 1..7 {
-            for file in 1..7 {
-                let sq = Square(rank * 8 + file);
-                square_and_entropy.push((sq, infoset.sense_entropy(sq)))
-            }
-        }
-        square_and_entropy.sort_by(|(_, e1), (_, e2)| e2.partial_cmp(e1).unwrap());
-        info!("square_and_entropy = {:?}", square_and_entropy);
-
         let possible_states = sparsen(2000, &mut self.rng, infoset.possible_states.iter().cloned());
 
-        struct SenseEntry {
-            sq: Square,
-            entropy: f64,
-            states_by_sr: HashMap<u32, Vec<usize>>,
-        }
-        let mut sense_entries = Vec::<SenseEntry>::new();
-        for (sq, entropy) in square_and_entropy {
-            let sr_by_state: Vec<u32> = possible_states.iter().map(|s| s.sense_fingerprint(sq)).collect();
-            if sense_entries
-                .iter()
-                .any(|prev| partition_dominates(&prev.states_by_sr, &sr_by_state)) {
-                continue;
-            }
-            let mut states_by_sr = HashMap::<u32, Vec<usize>>::new();
-            for (i, &sr) in sr_by_state.iter().enumerate() {
-                states_by_sr.entry(sr).or_default().push(i);
-            }
-            sense_entries.push(SenseEntry {
-                sq,
-                entropy,
-                states_by_sr,
-            });
-        }
-
-        let sense_entries: HashMap<Square, SenseEntry> =
-            sense_entries.into_iter().map(|se| (se.sq, se)).collect();
+        let sense_entries = infoset.sensible_senses(&possible_states);
         let squares: Vec<Square> = sense_entries.keys().cloned().collect();
         info!("{} sensible sense squares", squares.len());
 

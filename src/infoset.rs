@@ -132,4 +132,54 @@ impl Infoset {
         result.append(&mut self.fog_state.render());
         result
     }
+
+    pub fn sensible_senses(&self, states: &[BoardState]) -> fnv::FnvHashMap<Square, SenseEntry> {
+        let mut square_and_entropy = Vec::new();
+        for rank in 1..7 {
+            for file in 1..7 {
+                let sq = Square(rank * 8 + file);
+                square_and_entropy.push((sq, self.sense_entropy(sq)))
+            }
+        }
+        square_and_entropy.sort_by(|(_, e1), (_, e2)| e2.partial_cmp(e1).unwrap());
+
+        let mut sense_entries = Vec::<SenseEntry>::new();
+        for (sq, entropy) in square_and_entropy {
+            let sr_by_state: Vec<u32> = states.iter().map(|s| s.sense_fingerprint(sq)).collect();
+            if sense_entries
+                .iter()
+                .any(|prev| partition_dominates(&prev.states_by_sr, &sr_by_state)) {
+                continue;
+            }
+            let mut states_by_sr = fnv::FnvHashMap::<u32, Vec<usize>>::default();
+            for (i, &sr) in sr_by_state.iter().enumerate() {
+                states_by_sr.entry(sr).or_default().push(i);
+            }
+            sense_entries.push(SenseEntry {
+                sq,
+                entropy,
+                states_by_sr,
+            });
+        }
+
+        sense_entries.into_iter().map(|se| (se.sq, se)).collect()
+    }
+}
+
+pub struct SenseEntry {
+    pub sq: Square,
+    pub entropy: f64,
+    pub states_by_sr: fnv::FnvHashMap<u32, Vec<usize>>,
+}
+
+fn partition_dominates(states_by_sr: &fnv::FnvHashMap<u32, Vec<usize>>, sr_by_state: &[u32]) -> bool {
+    for states in states_by_sr.values() {
+        let sr = sr_by_state[states[0]];
+        for &s in &states[1..] {
+            if sr_by_state[s] != sr {
+                return false;
+            }
+        }
+    }
+    true
 }
