@@ -54,13 +54,15 @@ impl Move {
         Move::new(1, 1, 0, 0, 0, 8)
     }
 
-    fn from_simple_move(m: Option<crate::game::Move>, s: &State) -> Move {
+    pub fn from_simple_move(m: Option<crate::game::Move>, s: &State) -> Result<Move, ()> {
         let m = match m {
             Some(m) => m,
-            None => return Move::null(),
+            None => return Ok(Move::null()),
         };
         let from_kind = s.get_opt_kind(m.from.0);
-        assert!(from_kind > 0);
+        if from_kind == 0 {
+            return Err(());
+        }
         let from_kind = from_kind - 1;
         let to_kind = m.promotion.map_or(from_kind, |k| k as u32);
         let cap = s.get_opt_kind(m.to.0);
@@ -76,14 +78,14 @@ impl Move {
                 }
             }
         }
-        Move::new(
+        Ok(Move::new(
             m.from.0 as u32,
             m.to.0 as u32,
             from_kind,
             to_kind,
             cap,
             ep_file,
-        )
+        ))
     }
 
     pub fn to_simple_move(self) -> Option<crate::game::Move> {
@@ -1144,11 +1146,11 @@ pub fn verify(mut b: BoardState) {
         .chain(Some(None))
         .collect();
     for &gm in &all_gmoves {
-        assert_eq!(gm, Move::from_simple_move(gm, &s).to_simple_move());
+        assert_eq!(gm, Move::from_simple_move(gm, &s).unwrap().to_simple_move());
     }
 
     let expected_all_moves: Vec<Move> = all_gmoves.iter()
-        .map(|&gm| Move::from_simple_move(gm, &s))
+        .map(|&gm| Move::from_simple_move(gm, &s).unwrap())
         .collect();
     let mut all_moves = Vec::new();
     all_moves.push(Move::null());
@@ -1209,7 +1211,7 @@ pub fn verify(mut b: BoardState) {
     for gm in all_gmoves {
         info!("{:#?}", b.render());
         info!("{:?}", gm);
-        let m = Move::from_simple_move(gm, &s);
+        let m = Move::from_simple_move(gm, &s).unwrap();
 
         s.make_move(m, &mut undo_log);
         assert!(s.check());

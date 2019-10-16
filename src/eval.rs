@@ -89,10 +89,50 @@ fn test_standing_pat() {
     dbg!(s.mobility(Color::Black));
 }
 
-#[derive(Clone)]
-struct TtEntry {
-    hash: u64,
-    best_move: crate::fast::Move,
+#[derive(Clone, Copy)]
+struct TtEntry(u64);
+
+impl TtEntry {
+    fn empty() -> TtEntry {
+        TtEntry(0)
+    }
+
+    fn new(hash: u64, m: Move) -> TtEntry {
+        let p = match m.promotion {
+            None => 0,
+            Some(PieceKind::Knight) => 1,
+            Some(PieceKind::Bishop) => 2,
+            Some(PieceKind::Rook) => 3,
+            Some(PieceKind::Queen) => 4,
+            _ => panic!("{:?}", m),
+        };
+        let compact_move =
+            m.from.0 as u64 |
+            (m.to.0 as u64) << 6 |
+            p << 12;
+        let mask = (1 << 15) - 1;
+        assert!(compact_move <= mask);
+        TtEntry(hash & !mask | compact_move)
+    }
+
+    fn hash_matches(self, hash: u64) -> bool {
+        let mask = (1 << 15) - 1;
+        (self.0 ^ hash) & !mask == 0
+    }
+
+    fn best_move(self) -> Move {
+        let from = self.0 & 0b111111;
+        let to = (self.0 >> 6) & 0b111111;
+        let promotion = match (self.0 >> 12) & 0b111 {
+            0 => None,
+            1 => Some(PieceKind::Knight),
+            2 => Some(PieceKind::Bishop),
+            3 => Some(PieceKind::Rook),
+            4 => Some(PieceKind::Queen),
+            _ => panic!("{}", self.0),
+        };
+        Move { from: Square(from as i8), to: Square(to as i8), promotion }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -105,6 +145,7 @@ pub struct Stats {
     pub tt_miss: i64,
     pub tt_use_best_move: i64,
     pub tt_best_move_not_found: i64,
+    pub tt_best_move_corrupt: i64,
 }
 
 pub struct Ctx {
@@ -125,10 +166,7 @@ impl Ctx {
             state: (&board).into(),
             undo_log: Vec::new(),
             moves: Vec::new(),
-            tt: vec![TtEntry {
-                hash: 0,
-                best_move: crate::fast::Move::null(),
-            }; 1 << 20],
+            tt: vec![TtEntry::empty(); 1 << 22],
             ply: 0,
             pvs: Vec::new(),
             print: false,
@@ -223,12 +261,17 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     if depth >= 1 {
         let idx = ctx.state.hash() as usize & ctx.tt.len() - 1;
         let tt_entry = &ctx.tt[idx];
-        if tt_entry.hash == ctx.state.hash() {
-            if let Some(i) = ctx.moves[moves_start..].iter().position(|&m| m == tt_entry.best_move) {
-                ctx.moves.swap(moves_start, moves_start + i);
-                ctx.stats.tt_use_best_move += 1;
-            } else {
-                ctx.stats.tt_best_move_not_found += 1;
+        if tt_entry.hash_matches(ctx.state.hash()) {
+            match crate::fast::Move::from_simple_move(Some(tt_entry.best_move()), &ctx.state) {
+                Ok(best_move) => {
+                    if let Some(i) = ctx.moves[moves_start..].iter().position(|&m| m == best_move) {
+                        ctx.moves.swap(moves_start, moves_start + i);
+                        ctx.stats.tt_use_best_move += 1;
+                    } else {
+                        ctx.stats.tt_best_move_not_found += 1;
+                    }
+                }
+                Err(()) => ctx.stats.tt_best_move_corrupt += 1,
             }
         } else {
             ctx.stats.tt_miss += 1;
@@ -258,9 +301,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
 
             if depth >= 1 {
                 let idx = ctx.state.hash() as usize & ctx.tt.len() - 1;
-                let mut tt_entry = &mut ctx.tt[idx];
-                tt_entry.hash = ctx.state.hash();
-                tt_entry.best_move = best_move;
+                ctx.tt[idx] = TtEntry::new(ctx.state.hash(), best_move.to_simple_move().unwrap());
                 ctx.stats.tt_add_beta_cutoff += 1;
             }
 
@@ -279,9 +320,7 @@ pub fn search(depth: i32, mut alpha: i32, beta: i32, ctx: &mut Ctx) -> i32 {
     assert!(alpha < beta);
     if depth >= 1 && best_move != crate::fast::Move::null() {
         let idx = ctx.state.hash() as usize & ctx.tt.len() - 1;
-        let mut tt_entry = &mut ctx.tt[idx];
-        tt_entry.hash = ctx.state.hash();
-        tt_entry.best_move = best_move;
+        ctx.tt[idx] = TtEntry::new(ctx.state.hash(), best_move.to_simple_move().unwrap());
         ctx.stats.tt_add_exact += 1;
     }
 
