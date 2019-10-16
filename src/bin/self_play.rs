@@ -2,7 +2,7 @@
 
 use std::io::Write;
 use rand::prelude::*;
-use rbc::game::{Square, Color, Move, BoardState};
+use rbc::game::{Square, Color, Move, Piece, BoardState};
 use rbc::ai_interface::{Ai, Player};
 use rbc::infoset::Infoset;
 use rbc::distr;
@@ -14,7 +14,7 @@ struct GameState {
     infoset_black: Infoset,
     player_black: Box<dyn Player>,
     move_number: i32,
-    last_capture_square: Option<Square>,
+    last_capture: Option<(Square, Piece)>,
 }
 
 impl GameState {
@@ -26,7 +26,7 @@ impl GameState {
             infoset_black: Infoset::new(Color::Black),
             player_black: ai_black.make_player(Color::Black, seed + 2),
             move_number: 0,
-            last_capture_square: None,
+            last_capture: None,
         }
     }
 
@@ -40,8 +40,8 @@ impl GameState {
             Color::Black => (&mut self.infoset_black, &mut self.player_black),
         };
         if self.move_number > 0 {
-            infoset.opponent_move(self.last_capture_square);
-            player.handle_opponent_move(self.last_capture_square, infoset, html);
+            infoset.opponent_move(self.last_capture.map(|c| c.0));
+            player.handle_opponent_move(self.last_capture, infoset, html);
         }
         player.choose_sense(infoset, html)
     }
@@ -69,9 +69,13 @@ impl GameState {
         }
         let board = &self.board;
         let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
-        self.last_capture_square = self.board.make_move(taken_move);
-        infoset.my_move(requested_move, taken_move, self.last_capture_square);
-        player.handle_move(requested_move, taken_move, self.last_capture_square, infoset, html);
+        let old_board = self.board.clone();
+        self.last_capture = match self.board.make_move(taken_move) {
+            Some(cs) => Some((cs, old_board.get_piece(cs).unwrap())),
+            None => None,
+        };
+        infoset.my_move(requested_move, taken_move, self.last_capture.map(|c| c.0));
+        player.handle_move(requested_move, taken_move, self.last_capture.map(|c| c.0), infoset, html);
 
         self.move_number += 1;
     }

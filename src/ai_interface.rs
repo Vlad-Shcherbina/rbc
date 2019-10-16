@@ -11,7 +11,7 @@ pub trait Ai {
 pub trait Player {
     fn begin(&mut self, html: &mut dyn Write);
     fn handle_opponent_move(&mut self,
-        capture_square: Option<Square>,
+        capture: Option<(Square, Piece)>,
         infoset: &Infoset,
         html: &mut dyn Write);
     fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)>;
@@ -56,14 +56,14 @@ impl Player for RandomPlayer {
     fn begin(&mut self, _html: &mut dyn Write) {}
 
     fn handle_opponent_move(&mut self,
-        capture_square: Option<Square>,
+        capture: Option<(Square, Piece)>,
         _infoset: &Infoset,
         _html: &mut dyn Write,
     ) {
         assert!(self.color != self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
-        self.state.make_move_under_fog(capture_square);
+        self.state.make_move_under_fog(capture.map(|c| c.0));
     }
 
     fn choose_sense(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Square, f32)> {

@@ -21,6 +21,7 @@ impl Ai for GreedyAi {
                 Color::White => 0,
                 Color::Black => 1,
             },
+            last_capture: None,
         })
     }
 }
@@ -31,6 +32,7 @@ struct GreedyPlayer {
     summary: Vec<u8>,
     #[allow(dead_code)] experiment: bool,
     move_number: i32,
+    last_capture: Option<Piece>,
 }
 
 fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item=T>) -> Vec<T> {
@@ -53,15 +55,18 @@ impl Player for GreedyPlayer {
     fn begin(&mut self, _html: &mut dyn Write) {}
 
     fn handle_opponent_move(&mut self,
-        capture_square: Option<Square>,
+        capture: Option<(Square, Piece)>,
         infoset: &Infoset,
         html: &mut dyn Write,
     ) {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
-        info!("opp capture: {:?}", capture_square);
+        info!("opp capture: {:?}", capture);
         info!("{} possible states", infoset.possible_states.len());
-        if let Some(cs) = capture_square {
-            writeln!(html, "<p>Opponent captured <b>{:?}</b>.</p>", cs).unwrap();
+        if let Some((cs, piece)) = capture {
+            writeln!(html, "<p>Opponent captured {} at <b>{:?}</b>.</p>", piece.to_emoji(), cs).unwrap();
+            self.last_capture = Some(piece);
+        } else {
+            self.last_capture = None;
         }
     }
 
@@ -71,8 +76,10 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
         append_to_summary!(html, r##"<tr>
+            <td>{}</td>
             <td class=numcol><a href="#move{}">#{}</a></td>
             <td class=numcol>{}</td>"##,
+            self.last_capture.map_or(' ', Piece::to_emoji),
             self.move_number, self.move_number,
             infoset.possible_states.len());
 

@@ -63,8 +63,8 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             };
 
             if halfmove_number > 0 {
-                infoset.opponent_move(capture_square);
-                player.handle_opponent_move(capture_square, &infoset, &mut html);
+                let capture = infoset.opponent_move(capture_square);
+                player.handle_opponent_move(capture, &infoset, &mut html);
             } else {
                 assert!(capture_square.is_none());
             }

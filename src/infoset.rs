@@ -20,11 +20,17 @@ impl Infoset {
     }
 
     #[inline(never)]
-    pub fn opponent_move(&mut self, capture_square: Option<Square>) {
+    pub fn opponent_move(&mut self, capture_square: Option<Square>) -> Option<(Square, Piece)> {
         assert!(self.fog_state.side_to_play() != self.color);
         for s in &self.possible_states {
             assert!(s.side_to_play() != self.color);
         }
+
+        let result = if let Some(c) = capture_square {
+            Some((c, self.fog_state.get_piece(c).unwrap()))
+        } else {
+            None
+        };
 
         let mut new_possible_states = fnv::FnvHashSet::default();
         for state in &self.possible_states {
@@ -43,6 +49,7 @@ impl Infoset {
         }
         self.possible_states = new_possible_states.into_iter().collect();
         self.fog_state.make_move_under_fog(capture_square);
+        result
     }
 
     #[inline(never)]
