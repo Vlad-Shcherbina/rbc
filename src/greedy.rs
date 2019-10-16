@@ -34,74 +34,6 @@ struct GreedyPlayer {
     move_number: i32,
 }
 
-fn move_value(
-    req_move: Move,
-    states: &[BoardState],
-    alpha: i32, mut beta: i32,
-    ctx: &mut crate::eval::Ctx,
-) -> i32 {
-    assert!(alpha < beta);
-    for state in states {
-        let taken_move = state.requested_to_taken(req_move);
-        let mut s2 = state.clone();
-        s2.make_move(taken_move);
-
-        ctx.reset(s2);
-        let t = -crate::eval::search(0, -beta, -alpha, ctx);
-
-        if t <= alpha {
-            return alpha;
-        }
-        beta = beta.min(t);
-    }
-    beta
-}
-
-fn sr_value(
-    moves: &[Move],
-    states: &[BoardState],
-    mut alpha: i32, beta: i32,
-    ctx: &mut crate::eval::Ctx,
-) -> i32 {
-    assert!(alpha < beta);
-    for &m in moves {
-        let t = move_value(m, states, alpha, beta, ctx);
-        if t >= beta {
-            return beta;
-        }
-        alpha = alpha.max(t)
-    }
-    alpha
-}
-
-fn info_value(
-    squares: &[Square],
-    fog_state: &BoardState,
-    possible_states: &[BoardState],
-    ctx: &mut crate::eval::Ctx,
-) -> HashMap<Square, i32> {
-    let mut result = HashMap::new();
-    let moves = fog_state.all_sensible_requested_moves();
-    for &sq in squares {
-        let mut state_by_sr = fnv::FnvHashMap::<_, Vec<BoardState>>::default();
-        for s in possible_states {
-            state_by_sr.entry(s.sense(sq)).or_default().push(s.clone());
-        }
-        let alpha = -10000;
-        let mut beta = 10000;
-        for (_sr, states) in state_by_sr.iter() {
-            let t = sr_value(&moves, states, alpha, beta, ctx);
-            if t <= alpha {
-                beta = alpha;
-                break;
-            }
-            beta = beta.min(t);
-        }
-        result.insert(sq, beta);
-    }
-    result
-}
-
 fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item=T>) -> Vec<T> {
     if it.len() <= max_size {
         return it.collect();
@@ -149,14 +81,59 @@ impl Player for GreedyPlayer {
         html.flush().unwrap();
         let timer = std::time::Instant::now();
 
-        let possible_states = sparsen(2000, &mut self.rng, infoset.possible_states.iter().cloned());
+        let possible_states = sparsen(1000, &mut self.rng, infoset.possible_states.iter().cloned());
+
+        let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, i32>> = Default::default();
+        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
+        ctx.expensive_eval = true;
+        by_taken.reserve(possible_states.len());
+        let mut depth = 0;
+        loop {
+            for s in &possible_states {
+                let e = by_taken.entry(s.clone()).or_default();
+                let all_moves = s.all_moves().into_iter().map(Option::Some).chain(Some(None));
+                e.reserve(all_moves.size_hint().1.unwrap());
+                for m in all_moves {
+                    let mut s2 = s.clone();
+                    s2.make_move(m);
+                    ctx.reset(s2);
+                    let score = -crate::eval::search(depth, -10000, 10000, &mut ctx);
+                    e.insert(m, score);
+                }
+            }
+            writeln!(html, "<p>score by_taken (depth {}) took {:>5.1}s</p>", depth, timer.elapsed().as_secs_f64()).unwrap();
+            html.flush().unwrap();
+            if timer.elapsed().as_secs_f64() >= 1.0 || depth > 10 {
+                break;
+            }
+            by_taken.clear();
+            depth += 1;
+        }
+        writeln!(html, "<pre>{:#?}</pre>", ctx.stats).unwrap();
 
         let sense_entries = infoset.sensible_senses(&possible_states);
         let squares: Vec<Square> = sense_entries.keys().cloned().collect();
         info!("{} sensible sense squares", squares.len());
 
         let mut ctx = crate::eval::Ctx::new(BoardState::initial());
-        let iv = info_value(&squares, &infoset.fog_state, &possible_states, &mut ctx);
+        ctx.expensive_eval = true;
+        let mut iv: fnv::FnvHashMap<Square, i32> = Default::default();
+        let candidate_moves = infoset.fog_state.all_sensible_requested_moves();
+        assert!(!candidate_moves.is_empty());
+        for (&sq, se) in sense_entries.iter() {
+            assert!(!se.states_by_sr.is_empty());
+            let v = se.states_by_sr.values().map(|sidx: &Vec<usize>| {
+                assert!(!sidx.is_empty());
+                candidate_moves.iter().map(|&requested: &Move| {
+                    sidx.iter().map(|&i: &usize| {
+                        let s = &possible_states[i];
+                        let taken = s.requested_to_taken(requested);
+                        by_taken[s][&taken]
+                    }).min().unwrap()
+                }).max().unwrap()
+            }).min().unwrap();
+            iv.insert(sq, v);
+        }
 
         write!(html, "<table>").unwrap();
         for rank in (1..7).rev() {
