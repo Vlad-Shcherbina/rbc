@@ -1,5 +1,4 @@
 use std::io::Write;
-use std::collections::HashMap;
 use log::info;
 use rand::prelude::*;
 use crate::game::{Square, Color, Piece, Move, BoardState};
@@ -84,11 +83,11 @@ impl Player for GreedyPlayer {
         let possible_states = sparsen(1000, &mut self.rng, infoset.possible_states.iter().cloned());
 
         let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, i32>> = Default::default();
+        by_taken.reserve(possible_states.len());
         let mut ctx = crate::eval::Ctx::new(BoardState::initial());
         ctx.expensive_eval = true;
-        by_taken.reserve(possible_states.len());
-        let mut depth = 0;
-        loop {
+        for depth in 0..10 {
+            by_taken.clear();
             for s in &possible_states {
                 let e = by_taken.entry(s.clone()).or_default();
                 let all_moves = s.all_moves().into_iter().map(Option::Some).chain(Some(None));
@@ -103,11 +102,9 @@ impl Player for GreedyPlayer {
             }
             writeln!(html, "<p>score by_taken (depth {}) took {:>5.1}s</p>", depth, timer.elapsed().as_secs_f64()).unwrap();
             html.flush().unwrap();
-            if timer.elapsed().as_secs_f64() >= 1.0 || depth > 10 {
+            if timer.elapsed().as_secs_f64() >= 1.0 {
                 break;
             }
-            by_taken.clear();
-            depth += 1;
         }
         writeln!(html, "<pre>{:#?}</pre>", ctx.stats).unwrap();
 
@@ -115,6 +112,7 @@ impl Player for GreedyPlayer {
         let squares: Vec<Square> = sense_entries.keys().cloned().collect();
         info!("{} sensible sense squares", squares.len());
 
+        // TODO: dedup (anchor: TjifpfTOFCUV)
         let mut ctx = crate::eval::Ctx::new(BoardState::initial());
         ctx.expensive_eval = true;
         let mut iv: fnv::FnvHashMap<Square, i32> = Default::default();
@@ -195,39 +193,30 @@ impl Player for GreedyPlayer {
 
         let candidates = infoset.fog_state.all_sensible_requested_moves();
         let states: Vec<&BoardState> = sparsen(2000, &mut self.rng, infoset.possible_states.iter());
-        let m = candidates.len();
-        let n = states.len();
-        let mut payoff = vec![0f32; m * n];
 
         struct CacheEntry {
             value: f32,
             pv: Vec<Move>,
             bonus: f32,
         }
-        let depth = if n * m < 100 {
-            3
-        } else if n * m < 500 {
-            2
-        } else if n * m < 2000 {
-            1
-        } else {
-            0
-        };
-        writeln!(html, "<p>search depth {}</p>", depth).unwrap();
-        html.flush().unwrap();
-        let search_timer = std::time::Instant::now();
-        let mut eval_cache = HashMap::<BoardState, CacheEntry>::new();
+        // TODO: dedup (anchor: TjifpfTOFCUV)
+        let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, CacheEntry>> = Default::default();
+        by_taken.reserve(states.len());
         let mut ctx = crate::eval::Ctx::new(BoardState::initial());
         ctx.expensive_eval = true;
-        for (i, &requested) in candidates.iter().enumerate() {
-            for (j, &s) in states.iter().enumerate() {
-                let taken = s.requested_to_taken(requested);
-                let mut s2 = s.clone();
-                let cap = s2.make_move(taken);
-                let e = eval_cache.entry(s2.clone()).or_insert_with(|| {
+        for depth in 0..10 {
+            by_taken.clear();
+            for &s in &states {
+                let entry = by_taken.entry(s.clone()).or_default();
+                let all_moves = s.all_moves().into_iter().map(Option::Some).chain(Some(None));
+                entry.reserve(all_moves.size_hint().1.unwrap());
+                for m in all_moves {
+                    let mut s2 = s.clone();
+                    let cap = s2.make_move(m);
                     ctx.reset(s2.clone());
+                    let score = -crate::eval::search(depth, -10000, 10000, &mut ctx);
                     let mut e = CacheEntry {
-                        value: -crate::eval::search(depth, -10000, 10000, &mut ctx) as f32,
+                        value: score as f32,
                         pv: ctx.pvs[0].clone(),
                         bonus: 0.0,
                     };
@@ -238,15 +227,29 @@ impl Player for GreedyPlayer {
                             }
                         }
                     }
-                    e
-                });
+                    entry.insert(m, e);
+                }
+            }
+            writeln!(html, "<p>score by_taken (depth {}) took {:>5.1}s</p>", depth, timer.elapsed().as_secs_f64()).unwrap();
+            html.flush().unwrap();
+            if timer.elapsed().as_secs_f64() >= 1.0 {
+                break;
+            }
+        }
+        writeln!(html, "<pre>{:#?}</pre>", ctx.stats).unwrap();
+
+        let m = candidates.len();
+        let n = states.len();
+        let mut payoff = vec![0f32; m * n];
+
+        for (i, &requested) in candidates.iter().enumerate() {
+            for (j, &s) in states.iter().enumerate() {
+                let taken = s.requested_to_taken(requested);
+                let e = &by_taken[s][&taken];
                 payoff[i * n + j] = e.value + e.bonus;
             }
         }
-        writeln!(html, "<p>search took {:>5.1}s</p>", search_timer.elapsed().as_secs_f64()).unwrap();
-        writeln!(html, "<p>{} matrix cells, {} unique</p>", n * m, eval_cache.len()).unwrap();
         html.flush().unwrap();
-        info!("{} matrix cells, {} unique", n * m, eval_cache.len());
         info!("solving...");
         let sol = fictitious_play(m, n, &payoff, 100_000);
         let mut jx: Vec<usize> = (0..n).collect();
@@ -277,10 +280,8 @@ impl Player for GreedyPlayer {
             ).unwrap();
             writeln!(html, "<td class=numcol>{:.3}</td>", sol.strategy1[i]).unwrap();
             for &j in &jx {
-                let mut s2 = states[j].clone();
-                let taken = s2.requested_to_taken(candidates[i]);
-                s2.make_move(taken);
-                let e = &eval_cache[&s2];
+                let taken = states[j].requested_to_taken(candidates[i]);
+                let e = &by_taken[states[j]][&taken];
                 let moves = Some(taken).into_iter().chain(e.pv.iter().cloned().map(Option::Some));
                 let moves = crate::html::moves_to_html(&states[j], moves);
                 write!(html, "<td class=numcol><div><b>{:.0}", e.value).unwrap();
