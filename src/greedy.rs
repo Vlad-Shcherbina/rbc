@@ -314,22 +314,29 @@ impl Player for GreedyPlayer {
     }
 
     fn handle_move(&mut self,
-        requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
+        requested: Option<Move>, taken: Option<Move>,
+        capture: Option<(Square, Vec<Piece>)>,
         infoset: &Infoset,
         html: &mut dyn Write,
     ) {
         assert_eq!(self.color.opposite(), infoset.fog_state.side_to_play());
         info!("requested move: {:?}", requested);
         info!("taken move :    {:?}", taken);
-        info!("capture square: {:?}", capture_square);
+        info!("capture: {:?}", capture);
         info!("{} possible states after my move", infoset.possible_states.len());
         writeln!(html, "<p>requested: {:?}</p>", requested).unwrap();
         writeln!(html, "<p>taken: {:?}.</p>", taken).unwrap();
-        if let Some(cs) = capture_square {
-            writeln!(html, "<p>captured <b>{:?}</b></p>", cs).unwrap();
+        if let Some((cs, ref cp)) = capture {
+            writeln!(html, "<p>captured {} at <b>{:?}</b></p>",
+                cp.iter().cloned().map(Piece::to_emoji).collect::<String>(),
+                cs,
+            ).unwrap();
         }
         writeln!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
-        append_to_summary!(html, "<td class=numcol>{}</td></tr>", infoset.possible_states.len());
+        append_to_summary!(html, "<td class=numcol>{}</td><td>{}</td></tr>",
+            infoset.possible_states.len(),
+            capture.map_or(Vec::new(), |c| c.1).into_iter().map(Piece::to_emoji).collect::<String>(),
+        );
         html.flush().unwrap();
         self.move_number += 2;
     }

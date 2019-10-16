@@ -21,7 +21,7 @@ pub trait Player {
         html: &mut dyn Write);
     fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)>;
     fn handle_move(&mut self,
-        requested: Option<Move>, taken: Option<Move>, capture_square: Option<Square>,
+        requested: Option<Move>, taken: Option<Move>, capture: Option<(Square, Vec<Piece>)>,
         infoset: &Infoset,
         html: &mut dyn Write);
     fn get_summary(&self) -> String;
@@ -104,7 +104,8 @@ impl Player for RandomPlayer {
     }
 
     fn handle_move(&mut self,
-        _requested: Option<Move>, taken: Option<Move>, _capture_square: Option<Square>,
+        _requested: Option<Move>, taken: Option<Move>,
+        _capture: Option<(Square, Vec<Piece>)>,
         _infoset: &Infoset,
         _html: &mut dyn Write,
     ) {

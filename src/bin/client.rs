@@ -101,11 +101,11 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             };
             let requested = mr.requested.map(|m| Move::from_uci(&m));
             let taken = mr.taken.map(|m| Move::from_uci(&m));
-            infoset.my_move(requested, taken, mr.capture_square);
+            let observed_capture = infoset.my_move(requested, taken, mr.capture_square);
             player.handle_move(
                 requested,
                 taken,
-                mr.capture_square,
+                observed_capture,
                 &infoset,
                 &mut html);
 

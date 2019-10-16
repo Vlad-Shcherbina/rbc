@@ -74,8 +74,8 @@ impl GameState {
             Some(cs) => Some((cs, old_board.get_piece(cs).unwrap())),
             None => None,
         };
-        infoset.my_move(requested_move, taken_move, self.last_capture.map(|c| c.0));
-        player.handle_move(requested_move, taken_move, self.last_capture.map(|c| c.0), infoset, html);
+        let observed_capture = infoset.my_move(requested_move, taken_move, self.last_capture.map(|c| c.0));
+        player.handle_move(requested_move, taken_move, observed_capture, infoset, html);
 
         self.move_number += 1;
     }

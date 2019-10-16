@@ -78,20 +78,30 @@ impl Infoset {
     }
 
     #[inline(never)]
-    pub fn my_move(&mut self, requested_move: Option<Move>, taken_move: Option<Move>, capture_square: Option<Square>) {
+    pub fn my_move(
+        &mut self,
+        requested_move: Option<Move>,
+        taken_move: Option<Move>,
+        capture_square: Option<Square>,
+    ) -> Option<(Square, Vec<Piece>)> {
         assert_eq!(self.fog_state.side_to_play(), self.color);
         for s in &self.possible_states {
             assert_eq!(s.side_to_play(), self.color);
         }
 
+        let mut captured_piece: fnv::FnvHashSet<Piece> = Default::default();
         let mut new_possible_states = fnv::FnvHashSet::default();
-        // TODO: is deduplication necessary?
+        // Deduplication is necessary because we are collapsing castling states.
         for mut state in self.possible_states.drain(..) {
             let t = requested_move.map(|m| state.requested_to_taken(m))
                 .and_then(std::convert::identity);  // flatten
             if t == taken_move {
+                let old_state = state.clone();
                 let c = state.make_move(t);
                 if c == capture_square {
+                    if let Some(cs) = capture_square {
+                        captured_piece.insert(old_state.get_piece(cs).unwrap());
+                    }
                     state.clear_irrelevant_en_passant_square();
                     new_possible_states.insert(state);
                 }
@@ -99,6 +109,12 @@ impl Infoset {
         }
         self.possible_states = new_possible_states.into_iter().collect();
         self.fog_state.make_move(taken_move);
+        if let Some(cs) = capture_square {
+            Some((cs, captured_piece.into_iter().collect()))
+        } else {
+            assert!(captured_piece.is_empty());
+            None
+        }
     }
 
     #[inline(never)]
