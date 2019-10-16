@@ -240,14 +240,15 @@ impl Player for GreedyPlayer {
         html.flush().unwrap();
         let search_timer = std::time::Instant::now();
         let mut eval_cache = HashMap::<BoardState, CacheEntry>::new();
+        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
+        ctx.expensive_eval = true;
         for (i, &requested) in candidates.iter().enumerate() {
             for (j, &s) in states.iter().enumerate() {
                 let taken = s.requested_to_taken(requested);
                 let mut s2 = s.clone();
                 let cap = s2.make_move(taken);
                 let e = eval_cache.entry(s2.clone()).or_insert_with(|| {
-                    let mut ctx = crate::eval::Ctx::new(s2.clone());
-                    ctx.expensive_eval = true;
+                    ctx.reset(s2.clone());
                     let mut e = CacheEntry {
                         value: -crate::eval::search(depth, -10000, 10000, &mut ctx) as f32,
                         pv: ctx.pvs[0].clone(),
