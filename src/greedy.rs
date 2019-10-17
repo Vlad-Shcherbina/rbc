@@ -88,6 +88,13 @@ impl Player for GreedyPlayer {
         let timer = std::time::Instant::now();
 
         let possible_states = sparsen(1000, &mut self.rng, infoset.possible_states.iter().cloned());
+        let sense_entries = infoset.sensible_senses(&possible_states);
+        if sense_entries.len() == 1 {
+            writeln!(html, "<p>only one sense option</p>").unwrap();
+            let sq: Square = *sense_entries.keys().next().unwrap();
+            append_to_summary!(html, "<td class=numcol>---</td>");
+            return vec![(sq, 1.0)];
+        }
 
         let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, i32>> = Default::default();
         by_taken.reserve(possible_states.len());
@@ -115,7 +122,6 @@ impl Player for GreedyPlayer {
         }
         writeln!(html, "<pre>{:#?}</pre>", ctx.stats).unwrap();
 
-        let sense_entries = infoset.sensible_senses(&possible_states);
         let squares: Vec<Square> = sense_entries.keys().cloned().collect();
         info!("{} sensible sense squares", squares.len());
 
