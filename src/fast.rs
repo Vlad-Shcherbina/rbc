@@ -734,9 +734,26 @@ impl State {
             (mine & self.by_kind[PieceKind::Knight as usize]).count_ones() * 350 +
             (mine & self.by_kind[PieceKind::Bishop as usize]).count_ones() * 350 +
             (mine & self.by_kind[PieceKind::Rook as usize]).count_ones() * 525 +
-            (mine & self.by_kind[PieceKind::Queen as usize]).count_ones() * 1000 +
-            (mine & self.by_kind[PieceKind::King as usize]).count_ones() * 10000
+            (mine & self.by_kind[PieceKind::Queen as usize]).count_ones() * 1000
         ) as i32
+    }
+
+    #[inline(never)]
+    pub fn total_material(&self) -> (i32, i32) {
+        // https://www.chessprogramming.org/Material_Hash_Table#Chess_4.5
+        // encourages the winning side to trade pieces but no pawns
+        let m_white = self.material(Color::White);
+        let m_black = self.material(Color::Black);
+        let mt = m_white + m_black;
+        let md = m_white - m_black;
+        let winning_side = if md > 0 {
+            0
+        } else {
+            1
+        };
+        let pa = (self.by_color[winning_side] & self.by_kind[PieceKind::Pawn as usize]).count_ones() as i32;
+        let trade_down_bonus = md * pa * (8000 - mt).max(0) / (6400 * (pa + 1));
+        (md.min(2400).max(-2400), trade_down_bonus)
     }
 
     #[inline(never)]

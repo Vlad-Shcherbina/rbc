@@ -70,14 +70,21 @@ fn standing_pat(state: &crate::fast::State, color: Color) -> i32 {
 
 #[inline(never)]
 fn standing_pat_material_only(state: &crate::fast::State, color: Color) -> i32 {
-    state.material(color) - state.material(color.opposite())
+    let (md, bonus) = state.total_material();
+    let q = md + bonus;
+    match color {
+        Color::White => q,
+        Color::Black => -q,
+    }
 }
 
 #[cfg(test)]
 #[test]
 fn test_standing_pat() {
     let board: BoardState = fen::BoardState::from_fen(
-        "r1bqk2r/p1pp1ppp/2p5/4N3/4n3/2P5/PPP2PPP/R1BQK2R w KQkq - 0 0"
+        "r1bqk2r/p1pp1ppp/2p5/4N3/8/2P5/PPP2PPP/R1BQK2R w KQkq - 0 0"
+        // "3qk2r/3ppppp/8/8/8/8/3PPPPP/3QK1NR w KQkq - 0 0"
+        // "4kbnr/4ppp1/8/8/8/8/4PPP1/4KB1R w KQkq - 0 0"
     ).unwrap().into();
     dbg!(board.render());
     let s: crate::fast::State = (&board).into();
@@ -87,6 +94,7 @@ fn test_standing_pat() {
     dbg!(s.material(Color::Black));
     dbg!(s.mobility(Color::White));
     dbg!(s.mobility(Color::Black));
+    dbg!(s.total_material());
 }
 
 #[derive(Clone, Copy)]
