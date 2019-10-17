@@ -12,6 +12,8 @@ pub struct GreedyAi {
 
 impl Ai for GreedyAi {
     fn make_player(&self, color: Color, seed: u64) -> Box<dyn Player> {
+        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
+        ctx.expensive_eval = true;
         Box::new(GreedyPlayer {
             rng: StdRng::seed_from_u64(seed),
             color,
@@ -22,6 +24,7 @@ impl Ai for GreedyAi {
                 Color::Black => 1,
             },
             last_capture: None,
+            ctx,
         })
     }
 }
@@ -33,6 +36,7 @@ struct GreedyPlayer {
     #[allow(dead_code)] experiment: bool,
     move_number: i32,
     last_capture: Option<Piece>,
+    ctx: crate::eval::Ctx,
 }
 
 fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item=T>) -> Vec<T> {
@@ -98,8 +102,6 @@ impl Player for GreedyPlayer {
 
         let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, i32>> = Default::default();
         by_taken.reserve(possible_states.len());
-        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
-        ctx.expensive_eval = true;
         for depth in 0..10 {
             by_taken.clear();
             for s in &possible_states {
@@ -109,8 +111,8 @@ impl Player for GreedyPlayer {
                 for m in all_moves {
                     let mut s2 = s.clone();
                     s2.make_move(m);
-                    ctx.reset(s2);
-                    let score = -crate::eval::search(depth, -10000, 10000, &mut ctx);
+                    self.ctx.reset(s2);
+                    let score = -crate::eval::search(depth, -10000, 10000, &mut self.ctx);
                     e.insert(m, score);
                 }
             }
@@ -120,14 +122,12 @@ impl Player for GreedyPlayer {
                 break;
             }
         }
-        writeln!(html, "<pre>{:#?}</pre>", ctx.stats).unwrap();
+        writeln!(html, "<pre>{:#?}</pre>", self.ctx.stats).unwrap();
 
         let squares: Vec<Square> = sense_entries.keys().cloned().collect();
         info!("{} sensible sense squares", squares.len());
 
         // TODO: dedup (anchor: TjifpfTOFCUV)
-        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
-        ctx.expensive_eval = true;
         let mut iv: fnv::FnvHashMap<Square, i32> = Default::default();
         let candidate_moves = infoset.fog_state.all_sensible_requested_moves();
         assert!(!candidate_moves.is_empty());
@@ -215,8 +215,6 @@ impl Player for GreedyPlayer {
         // TODO: dedup (anchor: TjifpfTOFCUV)
         let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, CacheEntry>> = Default::default();
         by_taken.reserve(states.len());
-        let mut ctx = crate::eval::Ctx::new(BoardState::initial());
-        ctx.expensive_eval = true;
         for depth in 0..10 {
             by_taken.clear();
             for &s in &states {
@@ -226,11 +224,11 @@ impl Player for GreedyPlayer {
                 for m in all_moves {
                     let mut s2 = s.clone();
                     let cap = s2.make_move(m);
-                    ctx.reset(s2.clone());
-                    let score = -crate::eval::search(depth, -10000, 10000, &mut ctx);
+                    self.ctx.reset(s2.clone());
+                    let score = -crate::eval::search(depth, -10000, 10000, &mut self.ctx);
                     let mut e = CacheEntry {
                         value: score as f32,
-                        pv: ctx.pvs[0].clone(),
+                        pv: self.ctx.pvs[0].clone(),
                         bonus: 0.0,
                     };
                     if cap.is_none() && e.value.abs() < 9950.0 {
@@ -249,7 +247,7 @@ impl Player for GreedyPlayer {
                 break;
             }
         }
-        writeln!(html, "<pre>{:#?}</pre>", ctx.stats).unwrap();
+        writeln!(html, "<pre>{:#?}</pre>", self.ctx.stats).unwrap();
 
         let m = candidates.len();
         let n = states.len();
