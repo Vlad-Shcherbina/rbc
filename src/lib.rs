@@ -14,3 +14,4 @@ pub mod greedy;
 pub mod logger;
 pub mod stats;
 pub mod fast;
+pub mod cfr;
