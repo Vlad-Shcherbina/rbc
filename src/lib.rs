@@ -15,3 +15,4 @@ pub mod logger;
 pub mod stats;
 pub mod fast;
 pub mod cfr;
+pub mod rbc_xf;

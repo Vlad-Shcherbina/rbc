@@ -21,11 +21,11 @@ pub trait Game: Sized {
 type CompactNode = usize;
 
 #[derive(Debug)]
-struct CompactInfoset<OrigAction, OrigInfoset>
+pub struct CompactInfoset<OrigAction, OrigInfoset>
 {
-    orig: OrigInfoset,
-    player: usize,
-    actions: Vec<OrigAction>,
+    pub orig: OrigInfoset,
+    pub player: usize,
+    pub actions: Vec<OrigAction>,
 
     observable_history: Vec<(usize, usize)>,
     // Pairs (infoset, action) for all past choices by this player.
@@ -34,11 +34,11 @@ struct CompactInfoset<OrigAction, OrigInfoset>
 
 #[derive(Debug)]
 pub struct Encoding<G: Game> {
-    infoset_by_orig: HashMap<G::Infoset, usize>,
-    infosets: Vec<CompactInfoset<G::Action, G::Infoset>>,
-    nodes: Vec<NodeInfo</*Action*/CompactNode, /*Infoset*/usize>>,
-    parents: Vec<Option<(usize, G::Action)>>,
-    root: CompactNode,
+    pub infoset_by_orig: HashMap<G::Infoset, usize>,
+    pub infosets: Vec<CompactInfoset<G::Action, G::Infoset>>,
+    pub nodes: Vec<NodeInfo</*Action*/CompactNode, /*Infoset*/usize>>,
+    pub parents: Vec<Option<(usize, G::Action)>>,
+    pub root: CompactNode,
 }
 
 impl<G: Game> Encoding<G> {

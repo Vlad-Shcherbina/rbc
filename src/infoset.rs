@@ -151,6 +151,22 @@ impl Infoset {
         result
     }
 
+    pub fn sensible_moves(&self, states: &[BoardState]) -> Vec<Option<Move>> {
+        let mut moves = self.fog_state.all_sensible_requested_moves();
+        let mut outcomes: fnv::FnvHashSet<Vec<(BoardState, Option<Move>, Option<Square>)>> = Default::default();
+        outcomes.reserve(moves.len());
+        moves.retain(|&requested| {
+            let outcome: Vec<_> = states.iter().map(|s| {
+                let mut s2 = s.clone();
+                let taken = s.requested_to_taken(requested);
+                let cap = s2.make_move(taken);
+                (s2, taken, cap)
+            }).collect();
+            outcomes.insert(outcome)
+        });
+        moves
+    }
+
     pub fn sensible_senses(&self, states: &[BoardState]) -> fnv::FnvHashMap<Square, SenseEntry> {
         let mut square_and_entropy = Vec::new();
         for rank in 1..7 {
