@@ -27,7 +27,7 @@ impl Game for CoinTossGame {
     type Action = CoinTossAction;
     type Infoset = CoinTossInfoset;
 
-    fn node_info(&self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
+    fn node_info(&mut self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
         match h {
             [] => NodeInfo::Chance(vec![
                 (0.5, CoinTossAction::Toss(Coin::Heads)),
@@ -91,7 +91,7 @@ impl Game for RpsGame {
     type Action = Rps;
     type Infoset = u8;
 
-    fn node_info(&self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
+    fn node_info(&mut self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
         match h {
             [] => NodeInfo::Choice {
                 player: 0,
@@ -118,8 +118,8 @@ impl Game for RpsGame {
 }
 
 fn main() {
-    // let enc = Encoding::new(&CoinTossGame);
-    let enc = Encoding::new(&RpsGame);
+    // let enc = Encoding::new(&mut CoinTossGame);
+    let enc = Encoding::new(&mut RpsGame);
     dbg!(&enc);
     let mut cfr = Cfr::new(&enc);
     dbg!(&cfr);

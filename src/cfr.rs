@@ -15,7 +15,7 @@ pub trait Game: Sized {
     type Action: Clone + Eq + std::fmt::Debug;
     type Infoset: Clone + Eq + std::hash::Hash + std::fmt::Debug;
 
-    fn node_info(&self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset>;
+    fn node_info(&mut self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset>;
 }
 
 type CompactNode = usize;
@@ -42,7 +42,7 @@ pub struct Encoding<G: Game> {
 }
 
 impl<G: Game> Encoding<G> {
-    pub fn new(g: &G) -> Self {
+    pub fn new(g: &mut G) -> Self {
         let mut enc = Encoding {
             infoset_by_orig: HashMap::new(),
             infosets: Vec::new(),
@@ -55,7 +55,7 @@ impl<G: Game> Encoding<G> {
     }
     fn translate_node(
         &mut self,
-        g: &G,
+        g: &mut G,
         h: &mut Vec<G::Action>,
         obs_history: &mut [Vec<(usize, usize)>; 2],
         parent: Option<(CompactNode, G::Action)>,

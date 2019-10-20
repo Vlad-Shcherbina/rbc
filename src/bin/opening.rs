@@ -1,4 +1,4 @@
-use rbc::cfr::{NodeInfo, Game, Encoding, Cfr};
+use rbc::cfr::{Encoding, Cfr};
 use rbc::game::BoardState;
 
 use rbc::rbc_xf::RbcGame;
@@ -6,9 +6,9 @@ use rbc::rbc_xf::RbcGame;
 fn main() {
     let mut ctx = rbc::eval::Ctx::new(BoardState::initial());
     ctx.expensive_eval = true;
-    let rbc_game = RbcGame { ctx: std::cell::RefCell::new(&mut ctx) };
+    let mut rbc_game = RbcGame { ctx: &mut ctx };
     let timer = std::time::Instant::now();
-    let enc = Encoding::new(&rbc_game);
+    let enc = Encoding::new(&mut rbc_game);
     println!("it took {:.3}s", timer.elapsed().as_secs_f64());
     // dbg!(&enc);
     dbg!(enc.nodes.len());
@@ -17,15 +17,18 @@ fn main() {
         println!("{} {:?}", inf.player, inf.orig);
         println!("    {:?}", inf.actions);
     }*/
-    return;
+    // return;
     let mut cfr = Cfr::new(&enc);
     // dbg!(&cfr);
     for step in 0..100_000 {
         cfr.step(&enc);
         if step % 10_000 == 0 {
             let mut strat: Vec<_> = cfr.get_strategy(&enc).into_iter().collect();
-            strat.sort_by_key(|(infoset, _)| infoset.len());
+            strat.sort_by_key(|(infoset, _)| (infoset.len(), format!("{:?}", infoset)));
             for (infoset, mut actions) in strat {
+                if infoset.len() > 2 {
+                    break;
+                }
                 println!("{:?}", infoset);
                 actions.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
                 for (a, p) in actions {

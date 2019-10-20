@@ -22,7 +22,7 @@ pub enum Inflet {
 }
 
 pub struct RbcGame<'a> {
-    pub ctx: std::cell::RefCell<&'a mut crate::eval::Ctx>,
+    pub ctx: &'a mut crate::eval::Ctx,
 }
 
 // work around https://github.com/rust-lang/rust/issues/52560
@@ -42,7 +42,7 @@ impl<'a> Game for RbcGame<'a> {
     type Action = Action;
     type Infoset = Vec<Inflet>;
 
-    fn node_info(&self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
+    fn node_info(&mut self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
         let mut board = BoardState::initial();
         let mut infoset = [Infoset::new(Color::White), Infoset::new(Color::Black)];
         let mut observation = [Vec::new(), Vec::new()];
@@ -99,13 +99,12 @@ impl<'a> Game for RbcGame<'a> {
             }
         }
 
-        let mut ctx = self.ctx.borrow_mut();
-        ctx.reset(board.clone());
-        crate::eval::search(1, -10000, 10000, &mut *ctx);
-        crate::eval::search(2, -10000, 10000, &mut *ctx);
-        let score = crate::eval::search(3, -10000, 10000, &mut *ctx) * (1 - 2 * (board.side_to_play() as i32));
+        self.ctx.reset(board.clone());
+        crate::eval::search(1, -10000, 10000, self.ctx);
+        crate::eval::search(2, -10000, 10000, self.ctx);
+        let score = crate::eval::search(3, -10000, 10000, self.ctx) * (1 - 2 * (board.side_to_play() as i32));
 
-        let score = score as f32 + 5.0 * (
+        let score = score as f32 + 7.0 * (
             -(infoset[0].possible_states.len() as f32).log2()
             +(infoset[1].possible_states.len() as f32).log2());
 
