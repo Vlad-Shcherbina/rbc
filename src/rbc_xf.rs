@@ -4,14 +4,15 @@ use crate::infoset::Infoset;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    ChoosePosition(BoardState),
+    ChoosePosition(usize),
     Sense(Square),
     Move(Option<Move>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Inflet {
-    ChoosePosition(BoardState),
+    MyColor(Color),
+    ChoosePosition(usize),
     Sense(Square, Vec<(Square, Option<Piece>)>),
     OpponentCapture(Option<Square>),
     Move {
@@ -26,15 +27,25 @@ pub struct RbcGame<'a> {
     pub eval_cache: fnv::FnvHashMap<BoardState, i32>,
     depth: usize,
     search_depth: i32,
+    init_boards: Vec<BoardState>,
+    init_state: State,
 }
 
 impl<'a> RbcGame<'a> {
-    pub fn new(depth: usize, search_depth: i32, ctx: &'a mut crate::eval::Ctx) -> Self {
+    pub fn new(
+        depth: usize,
+        search_depth: i32,
+        ctx: &'a mut crate::eval::Ctx,
+        init_state: State,
+        init_boards: Vec<BoardState>,
+    ) -> Self {
         RbcGame {
             depth,
             search_depth,
             ctx,
             eval_cache: Default::default(),
+            init_boards,
+            init_state,
         }
     }
 }
@@ -46,8 +57,9 @@ impl<'a> std::fmt::Debug for RbcGame<'a> {
     }
 }
 
-#[derive(Debug)]
-enum State {
+#[derive(Debug, Clone)]
+pub enum State {
+    ChoosePositionBeforeSense(Color),
     ChooseSense(Color),
     ChooseMove(Color),
 }
@@ -59,8 +71,10 @@ impl<'a> Game for RbcGame<'a> {
     fn node_info(&mut self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
         let mut board = BoardState::initial();
         let mut infoset = [Infoset::new(Color::White), Infoset::new(Color::Black)];
-        let mut observation = [Vec::new(), Vec::new()];
-        let mut state = State::ChooseSense(Color::White);
+        let mut observation = [vec![Inflet::MyColor(Color::White)], vec![Inflet::MyColor(Color::Black)]];
+        // let mut state = State::ChooseSense(Color::White);
+        // let mut state = State::ChoosePositionBeforeSense(Color::Black);
+        let mut state = self.init_state.clone();
 
         for a in h {
             match state {
@@ -89,10 +103,30 @@ impl<'a> Game for RbcGame<'a> {
                         _ => unreachable!("{:?}", a),
                     }
                 }
+                State::ChoosePositionBeforeSense(color) => {
+                    match a {
+                        &Action::ChoosePosition(idx) => {
+                            board = self.init_boards[idx].clone();
+
+                            infoset[color as usize].fog_state = board.clone();
+                            infoset[color as usize].fog_state.fog_of_war(color);
+                            infoset[color as usize].possible_states = vec![board.clone()];
+                            observation[color as usize].push(Inflet::ChoosePosition(idx));
+
+                            let opp_inf = &mut infoset[color.opposite() as usize];
+                            opp_inf.fog_state = board.clone();
+                            opp_inf.fog_state.fog_of_war(color.opposite());
+                            opp_inf.possible_states = self.init_boards.clone();
+
+                            state = State::ChooseSense(color.opposite());
+                        }
+                        _ => unreachable!("{:?}", a),
+                    }
+                }
             }
         }
 
-        if h.len() < self.depth {
+        if h.len() < self.depth && board.find_king(Color::White).is_some() && board.find_king(Color::Black).is_some() {
             match state {
                 State::ChooseSense(color) => {
                     let ss = infoset[color as usize].sensible_senses(&infoset[color as usize].possible_states);
@@ -108,6 +142,21 @@ impl<'a> Game for RbcGame<'a> {
                         player: color as usize,
                         infoset: observation[color as usize].clone(),
                         actions: req_moves.into_iter().map(Action::Move).collect(),
+                    }
+                }
+                State::ChoosePositionBeforeSense(color) => {
+                    let mut fog_state = self.init_boards[0].clone();
+                    fog_state.fog_of_war(color.opposite());
+                    for s in &self.init_boards {
+                        let mut f = s.clone();
+                        f.fog_of_war(color.opposite());
+                        assert_eq!(f.side_to_play(), color.opposite());
+                        assert_eq!(fog_state, f);
+                    }
+                    return NodeInfo::Choice {
+                        player: color as usize,
+                        infoset: observation[color as usize].clone(),
+                        actions: (0..self.init_boards.len()).map(Action::ChoosePosition).collect(),
                     }
                 }
             }

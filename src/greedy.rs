@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::collections::HashMap;
 use log::info;
 use rand::prelude::*;
 use crate::game::{Square, Color, Piece, Move, BoardState};
@@ -25,6 +26,8 @@ impl Ai for GreedyAi {
             },
             last_capture: None,
             ctx,
+            last_sense_result: None,
+            strategy: None,
         })
     }
 }
@@ -37,6 +40,8 @@ struct GreedyPlayer {
     move_number: i32,
     last_capture: Option<Piece>,
     ctx: crate::eval::Ctx,
+    last_sense_result: Option<(Square, Vec<(Square, Option<Piece>)>)>,
+    strategy: Option<HashMap<(Square, Vec<(Square, Option<Piece>)>), Vec<(Option<Move>, f32)>>>,
 }
 
 fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item=T>) -> Vec<T> {
@@ -108,6 +113,60 @@ impl Player for GreedyPlayer {
                 (Square::from_san("b2"), 1.0),
                 (Square::from_san("g2"), 1.0),
             ];
+        }
+
+        self.strategy = None;
+        if possible_states.len() < 300 {
+            let cfr_timer = std::time::Instant::now();
+            let mut search_depth = 0;
+            let strategy = loop {
+                let mut game = crate::rbc_xf::RbcGame::new(
+                    1 + 2, search_depth, &mut self.ctx,
+                    crate::rbc_xf::State::ChoosePositionBeforeSense(self.color.opposite()),
+                    possible_states.clone());
+                let enc = crate::cfr::Encoding::new(&mut game);
+                writeln!(html, "<p>Building game tree (search depth {}) took {:.3}s</p>", search_depth, cfr_timer.elapsed().as_secs_f64()).unwrap();
+                html.flush().unwrap();
+
+                if timer.elapsed().as_secs_f64() >= 1.0 || search_depth > 9 {
+                    let sol_timer = std::time::Instant::now();
+                    let mut cfr = crate::cfr::Cfr::new(&enc);
+                    for step in 0..1_000_000 {
+                        cfr.step(&enc);
+                        if sol_timer.elapsed().as_secs_f64() > 4.0 {
+                            writeln!(html, "CFR made {} iterations", step).unwrap();
+                            break;
+                        }
+                    }
+                    break cfr.get_strategy(&enc);
+                }
+                search_depth += 1;
+            };
+            let d = &strategy[&vec![crate::rbc_xf::Inflet::MyColor(self.color)]];
+            let mut d: Vec<(Square, f32)> = d.iter().map(|(a, prob)| {
+                match a {
+                    crate::rbc_xf::Action::Sense(sq) => (*sq, *prob),
+                    _ => unreachable!("{:?}", a),
+                }
+            }).collect();
+            d.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
+            d.retain(|&(_, p)| p > 0.03);
+            self.strategy = Some(strategy.iter().filter_map(|(obs, resp)| {
+                match &obs[..] {
+                    [crate::rbc_xf::Inflet::MyColor(c), crate::rbc_xf::Inflet::Sense(sq, sr)] if *c == self.color => {
+                        let mut resp: Vec<(Option<Move>, f32)> = resp.iter().map(|(a, prob)| match a {
+                            crate::rbc_xf::Action::Move(m) => (*m, *prob),
+                            _ => unreachable!("{:?}", a),
+                        }).filter(|&(_, prob)| prob >= 0.01).collect();
+                        resp.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
+                        Some(((*sq, sr.clone()), resp))
+                    }
+                    _ => None
+                }
+            }).collect());
+            writeln!(html, "<p>CFR strat: {:?}</p>", d).unwrap();
+            append_to_summary!(html, "<td class=numcol>*{:.1}s</td>", timer.elapsed().as_secs_f64());
+            return d;
         }
 
         let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, i32>> = Default::default();
@@ -201,6 +260,7 @@ impl Player for GreedyPlayer {
         html: &mut dyn Write,
     ) {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
+        self.last_sense_result = Some((sense, sense_result.to_owned()));
         info!("sense {:?} -> {:?}", sense, sense_result);
         info!("{} possible states", infoset.possible_states.len());
         write!(self.summary, " {:>5}", infoset.possible_states.len()).unwrap();
@@ -218,7 +278,6 @@ impl Player for GreedyPlayer {
             writeln!(html, "<p>opening</p>").unwrap();
             append_to_summary!(html, "<td class=numcol>open</td><td></td>");
             return vec![
-                (None, 5.0),
                 (Some(Move::from_uci("e2e4")), 1.0),
                 (Some(Move::from_uci("d2d4")), 1.0),
                 (Some(Move::from_uci("b1c3")), 1.0),
@@ -227,6 +286,20 @@ impl Player for GreedyPlayer {
                 (Some(Move::from_uci("g2g3")), 1.0),
                 (Some(Move::from_uci("h2h4")), 1.0),
             ];
+        }
+
+        if infoset.possible_states.len() > 1 {
+            if let Some(strategy) = self.strategy.take() {
+                let d = strategy[&self.last_sense_result.take().unwrap()].clone();
+                writeln!(html, "<p>Using stored strategy</p>").unwrap();
+                writeln!(html, "<table>").unwrap();
+                for (m, p) in &d {
+                    writeln!(html, "<tr><td>{:?}</td><td>{}</td>", m, p).unwrap();
+                }
+                writeln!(html, "</table>").unwrap();
+                append_to_summary!(html, "<td class=numcol>stored</td><td></td>");
+                return d;
+            }
         }
 
         let mut candidates = infoset.fog_state.all_sensible_requested_moves();

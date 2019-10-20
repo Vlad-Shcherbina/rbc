@@ -1,12 +1,15 @@
 use rbc::cfr::{Encoding, Cfr};
-use rbc::game::BoardState;
+use rbc::game::{Color, BoardState};
 
-use rbc::rbc_xf::RbcGame;
+use rbc::rbc_xf::{State, RbcGame};
 
 fn main() {
     let mut ctx = rbc::eval::Ctx::new(BoardState::initial());
     ctx.expensive_eval = true;
-    let mut rbc_game = RbcGame::new(4, 3, &mut ctx);
+    let mut rbc_game = RbcGame::new(1 + 2, 3, &mut ctx, State::ChoosePositionBeforeSense(Color::Black), vec![
+        BoardState::initial(),
+        fen::BoardState::from_fen("rnbqkb1r/pppppppp/8/8/8/5n2/PPPPPPPP/RNBQKBNR w KQkq - 0 0").unwrap().into(),
+    ]);
     let timer = std::time::Instant::now();
     let enc = Encoding::new(&mut rbc_game);
     println!("it took {:.3}s", timer.elapsed().as_secs_f64());
@@ -27,7 +30,7 @@ fn main() {
             let mut strat: Vec<_> = cfr.get_strategy(&enc).into_iter().collect();
             strat.sort_by_key(|(infoset, _)| (infoset.len(), format!("{:?}", infoset)));
             for (infoset, mut actions) in strat {
-                if infoset.len() >= 2 {
+                if infoset.len() >= 3 {
                     break;
                 }
                 println!("{:?}", infoset);

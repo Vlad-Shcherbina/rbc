@@ -88,7 +88,7 @@ impl<G: Game> Encoding<G> {
                     infosets.len() - 1
                 });
                 let ci = &self.infosets[infoset_idx];
-                assert_eq!(ci.player, player);
+                assert_eq!(ci.player, player, "{:?}", infoset);
                 assert_eq!(ci.actions, actions);
                 assert_eq!(ci.observable_history, obs_history[player], "perfect recall property violated");
 

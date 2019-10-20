@@ -27,6 +27,8 @@ impl Infoset {
         }
 
         let result = if let Some(c) = capture_square {
+            // dbg!(self.fog_state.render());
+            // dbg!(c);
             Some((c, self.fog_state.get_piece(c).unwrap()))
         } else {
             None
