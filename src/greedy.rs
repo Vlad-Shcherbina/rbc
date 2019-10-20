@@ -99,6 +99,16 @@ impl Player for GreedyPlayer {
             append_to_summary!(html, "<td class=numcol>---</td>");
             return vec![(sq, 1.0)];
         }
+        if self.move_number == 1 {
+            writeln!(html, "<p>opening</p>").unwrap();
+            append_to_summary!(html, "<td class=numcol>open</td>");
+            return vec![
+                (Square::from_san("d2"), 2.0),
+                (Square::from_san("e2"), 2.0),
+                (Square::from_san("b2"), 1.0),
+                (Square::from_san("g2"), 1.0),
+            ];
+        }
 
         let mut by_taken: fnv::FnvHashMap<BoardState, fnv::FnvHashMap<Option<Move>, i32>> = Default::default();
         by_taken.reserve(possible_states.len());
@@ -203,6 +213,21 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
         info!("choose_move (move {})", self.move_number);
+
+        if self.move_number == 0 {
+            writeln!(html, "<p>opening</p>").unwrap();
+            append_to_summary!(html, "<td class=numcol>open</td><td></td>");
+            return vec![
+                (None, 5.0),
+                (Some(Move::from_uci("e2e4")), 1.0),
+                (Some(Move::from_uci("d2d4")), 1.0),
+                (Some(Move::from_uci("b1c3")), 1.0),
+                (Some(Move::from_uci("g1f3")), 1.0),
+                (Some(Move::from_uci("b2b3")), 1.0),
+                (Some(Move::from_uci("g2g3")), 1.0),
+                (Some(Move::from_uci("h2h4")), 1.0),
+            ];
+        }
 
         let mut candidates = infoset.fog_state.all_sensible_requested_moves();
         let null_move = candidates.pop().unwrap();
