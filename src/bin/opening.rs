@@ -6,13 +6,14 @@ use rbc::rbc_xf::RbcGame;
 fn main() {
     let mut ctx = rbc::eval::Ctx::new(BoardState::initial());
     ctx.expensive_eval = true;
-    let mut rbc_game = RbcGame { ctx: &mut ctx };
+    let mut rbc_game = RbcGame::new(4, 3, &mut ctx);
     let timer = std::time::Instant::now();
     let enc = Encoding::new(&mut rbc_game);
     println!("it took {:.3}s", timer.elapsed().as_secs_f64());
     // dbg!(&enc);
     dbg!(enc.nodes.len());
     dbg!(enc.infosets.len());
+    dbg!(rbc_game.eval_cache.len());
     /*for inf in &enc.infosets {
         println!("{} {:?}", inf.player, inf.orig);
         println!("    {:?}", inf.actions);
@@ -20,13 +21,13 @@ fn main() {
     // return;
     let mut cfr = Cfr::new(&enc);
     // dbg!(&cfr);
-    for step in 0..100_000 {
+    for step in 0..1000_000 {
         cfr.step(&enc);
-        if step % 10_000 == 0 {
+        if (step + 1) % 10_000 == 0 {
             let mut strat: Vec<_> = cfr.get_strategy(&enc).into_iter().collect();
             strat.sort_by_key(|(infoset, _)| (infoset.len(), format!("{:?}", infoset)));
             for (infoset, mut actions) in strat {
-                if infoset.len() > 2 {
+                if infoset.len() >= 2 {
                     break;
                 }
                 println!("{:?}", infoset);

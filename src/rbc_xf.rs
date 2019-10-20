@@ -22,7 +22,21 @@ pub enum Inflet {
 }
 
 pub struct RbcGame<'a> {
-    pub ctx: &'a mut crate::eval::Ctx,
+    ctx: &'a mut crate::eval::Ctx,
+    pub eval_cache: fnv::FnvHashMap<BoardState, i32>,
+    depth: usize,
+    search_depth: i32,
+}
+
+impl<'a> RbcGame<'a> {
+    pub fn new(depth: usize, search_depth: i32, ctx: &'a mut crate::eval::Ctx) -> Self {
+        RbcGame {
+            depth,
+            search_depth,
+            ctx,
+            eval_cache: Default::default(),
+        }
+    }
 }
 
 // work around https://github.com/rust-lang/rust/issues/52560
@@ -78,7 +92,7 @@ impl<'a> Game for RbcGame<'a> {
             }
         }
 
-        if h.len() < 5 {
+        if h.len() < self.depth {
             match state {
                 State::ChooseSense(color) => {
                     let ss = infoset[color as usize].sensible_senses(&infoset[color as usize].possible_states);
@@ -99,10 +113,16 @@ impl<'a> Game for RbcGame<'a> {
             }
         }
 
-        self.ctx.reset(board.clone());
-        crate::eval::search(1, -10000, 10000, self.ctx);
-        crate::eval::search(2, -10000, 10000, self.ctx);
-        let score = crate::eval::search(3, -10000, 10000, self.ctx) * (1 - 2 * (board.side_to_play() as i32));
+        let ctx = &mut self.ctx;
+        let search_depth = self.search_depth;
+        let e = self.eval_cache.entry(board.clone()).or_insert_with(|| {
+            ctx.reset(board.clone());
+            for d in 1..search_depth {
+                crate::eval::search(d, -10000, 10000, ctx);
+            }
+            crate::eval::search(search_depth, -10000, 10000, ctx)
+        });
+        let score = *e * (1 - 2 * (board.side_to_play() as i32));
 
         let score = score as f32 + 7.0 * (
             -(infoset[0].possible_states.len() as f32).log2()
