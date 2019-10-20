@@ -106,8 +106,8 @@ impl Player for GreedyPlayer {
             by_taken.clear();
             for s in &possible_states {
                 let e = by_taken.entry(s.clone()).or_default();
-                let all_moves = s.all_moves().into_iter().map(Option::Some).chain(Some(None));
-                e.reserve(all_moves.size_hint().1.unwrap());
+                let all_moves = s.all_moves();
+                e.reserve(all_moves.len());
                 for m in all_moves {
                     let mut s2 = s.clone();
                     s2.make_move(m);
@@ -135,7 +135,7 @@ impl Player for GreedyPlayer {
             assert!(!se.states_by_sr.is_empty());
             let v = se.states_by_sr.values().map(|sidx: &Vec<usize>| {
                 assert!(!sidx.is_empty());
-                candidate_moves.iter().map(|&requested: &Move| {
+                candidate_moves.iter().map(|&requested: &Option<Move>| {
                     sidx.iter().map(|&i: &usize| {
                         let s = &possible_states[i];
                         let taken = s.requested_to_taken(requested);
@@ -204,7 +204,9 @@ impl Player for GreedyPlayer {
         let timer = std::time::Instant::now();
         info!("choose_move (move {})", self.move_number);
 
-        let candidates = infoset.fog_state.all_sensible_requested_moves();
+        let mut candidates = infoset.fog_state.all_sensible_requested_moves();
+        let null_move = candidates.pop().unwrap();
+        assert_eq!(null_move, None);
         let states: Vec<&BoardState> = sparsen(2000, &mut self.rng, infoset.possible_states.iter());
 
         struct CacheEntry {
@@ -219,8 +221,8 @@ impl Player for GreedyPlayer {
             by_taken.clear();
             for &s in &states {
                 let entry = by_taken.entry(s.clone()).or_default();
-                let all_moves = s.all_moves().into_iter().map(Option::Some).chain(Some(None));
-                entry.reserve(all_moves.size_hint().1.unwrap());
+                let all_moves = s.all_moves();
+                entry.reserve(all_moves.len());
                 for m in all_moves {
                     let mut s2 = s.clone();
                     let cap = s2.make_move(m);
@@ -286,8 +288,8 @@ impl Player for GreedyPlayer {
         for &i in &ix {
             writeln!(html, "<tr>").unwrap();
             writeln!(html, "<td>{}{}</td>",
-                infoset.fog_state.get_piece(candidates[i].from).unwrap().to_emoji(),
-                candidates[i].to_uci(),
+                infoset.fog_state.get_piece(candidates[i].unwrap().from).unwrap().to_emoji(),
+                candidates[i].unwrap().to_uci(),
             ).unwrap();
             writeln!(html, "<td class=numcol>{:.3}</td>", sol.strategy1[i]).unwrap();
             for &j in &jx {
@@ -311,7 +313,6 @@ impl Player for GreedyPlayer {
         append_to_summary!(html, "<td class=numcol>{:.1}</td>", sol.game_value);
         html.flush().unwrap();
         candidates.into_iter()
-            .map(Option::Some)
             .zip(sol.strategy1)
             .filter(|&(_, p)| p >= 2e-2)
             .collect()

@@ -62,13 +62,13 @@ impl GameState {
             Color::White => (&mut self.infoset_white, &mut self.player_white),
             Color::Black => (&mut self.infoset_black, &mut self.player_black),
         };
-        if let Some(rm) = &requested_move {
+        {
             let mut fog_state = self.board.clone();
             fog_state.fog_of_war(self.board.side_to_play());
-            assert!(fog_state.all_sensible_requested_moves().contains(rm));
+            assert!(fog_state.all_sensible_requested_moves().contains(&requested_move));
         }
         let board = &self.board;
-        let taken_move = requested_move.and_then(|m| board.requested_to_taken(m));
+        let taken_move = board.requested_to_taken(requested_move);
         let old_board = self.board.clone();
         self.last_capture = match self.board.make_move(taken_move) {
             Some(cs) => Some((cs, old_board.get_piece(cs).unwrap())),

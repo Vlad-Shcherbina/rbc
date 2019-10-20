@@ -45,14 +45,12 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
             if state.get_piece(sq).map_or(false, |p| p.color != state.side_to_play()) {
                 let all_attacks_to = state.all_attacks_to(sq, state.side_to_play());
                 for &am in &all_attacks_to {
-                    assert!(all_moves.contains(&am), "{:?}", am);
+                    assert!(all_moves.contains(&Some(am)), "{:?}", am);
                 }
             }
         }
 
-        if let Some(m) = taken_move {
-            assert!(all_moves.contains(&m), "{:?}", m);
-        }
+        assert!(all_moves.contains(&taken_move), "{:?}", m);
 
         let capture_square = state.make_move(taken_move);
         assert_eq!(capture_square, m.capture_square);
@@ -90,18 +88,16 @@ fn check_game(h: GameHistory, forgiving_en_passant: bool) {
                 m.requested_move.as_ref().map_or("--", String::as_ref));
 
             let requested = m.requested_move.as_ref().map(|s| Move::from_uci(s));
-            if let Some(m) = &requested {
+            {
                 let all_moves = state.all_sensible_requested_moves();
-                assert!(all_moves.contains(m));
+                assert!(all_moves.contains(&requested));
             }
             info!("my move (taken):     {}",
                 m.taken_move.as_ref().map_or("--", String::as_ref));
 
             let taken = m.taken_move.as_ref().map(|s| Move::from_uci(s));
 
-            let predicted_taken =
-                requested.map(|m| actual_state.requested_to_taken(m))
-                .and_then(std::convert::identity);  // flatten
+            let predicted_taken = actual_state.requested_to_taken(requested);
             assert_eq!(predicted_taken, taken);
 
             state.make_move(taken);

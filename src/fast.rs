@@ -1158,10 +1158,7 @@ pub fn verify(mut b: BoardState) {
     let mut undo_log = Vec::new();
     let s0 = s.clone();
 
-    let all_gmoves: Vec<_> =
-        b.all_moves().into_iter().map(Option::Some)
-        .chain(Some(None))
-        .collect();
+    let all_gmoves = b.all_moves();
     for &gm in &all_gmoves {
         assert_eq!(gm, Move::from_simple_move(gm, &s).unwrap().to_simple_move());
     }

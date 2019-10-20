@@ -158,8 +158,13 @@ impl BoardState {
     }
 
     #[inline(never)]
+    pub fn all_sensible_requested_moves(&self) -> Vec<Option<Move>> {
+        self.all_sensible_requested_moves_not_none().into_iter().map(Option::Some).chain(Some(None)).collect()
+    }
+
+    #[inline(never)]
     #[allow(clippy::cognitive_complexity)]
-    pub fn all_sensible_requested_moves(&self) -> Vec<Move> {
+    pub fn all_sensible_requested_moves_not_none(&self) -> Vec<Move> {
         let mut result = Vec::with_capacity(128);
         for from in 0..64 {
             let from = Square(from);
@@ -298,7 +303,11 @@ impl BoardState {
     }
 
     #[inline(never)]
-    pub fn requested_to_taken(&self, m: Move) -> Option<Move> {
+    pub fn requested_to_taken(&self, m: Option<Move>) -> Option<Move> {
+        let m = match m {
+            Some(m) => m,
+            None => return None,
+        };
         let p = self.get_piece(m.from).unwrap();
         assert_eq!(p.color, self.side_to_play());
         match p.kind {
@@ -387,23 +396,28 @@ impl BoardState {
     }
 
     #[inline(never)]
-    pub fn all_moves_naive(&self) -> Vec<Move> {
+    pub fn all_moves_naive(&self) -> Vec<Option<Move>> {
         let mut fog_state = self.clone();
         fog_state.fog_of_war(self.side_to_play());
 
-        let mut moves: Vec<Move> =
+        let mut moves: Vec<Option<Move>> =
             fog_state.all_sensible_requested_moves()
             .into_iter()
-            .filter_map(|m| self.requested_to_taken(m))
+            .map(|m| self.requested_to_taken(m))
             .collect();
         let mut seen = std::collections::HashSet::with_capacity(moves.len());
         moves.retain(|m| seen.insert(*m));
         moves
     }
 
+    #[inline(never)]
+    pub fn all_moves(&self) -> Vec<Option<Move>> {
+        self.all_moves_not_none().into_iter().map(Option::Some).chain(Some(None)).collect()
+    }
+
     #[allow(clippy::cognitive_complexity)]
     #[inline(never)]
-    pub fn all_moves(&self) -> Vec<Move> {
+    pub fn all_moves_not_none(&self) -> Vec<Move> {
         let mut result = Vec::with_capacity(128);
         for from in 0..64 {
             let from = Square(from);

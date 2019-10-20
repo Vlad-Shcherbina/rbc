@@ -98,8 +98,7 @@ impl Player for RandomPlayer {
         // not only sensible ones
         self.state.all_sensible_requested_moves()
             .into_iter()
-            .map(|m| (Some(m), 1.0))
-            .chain(Some((None, 1.0)))
+            .map(|m| (m, 1.0))
             .collect()
     }
 

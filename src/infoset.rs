@@ -34,11 +34,7 @@ impl Infoset {
 
         let mut new_possible_states = fnv::FnvHashSet::default();
         for state in &self.possible_states {
-            let mut all_moves = vec![None];
             for m in state.all_moves() {
-                all_moves.push(Some(m));
-            }
-            for m in all_moves {
                 let mut new_state = state.clone();
                 let c = new_state.make_move(m);
                 if c == capture_square {
@@ -93,8 +89,7 @@ impl Infoset {
         let mut new_possible_states = fnv::FnvHashSet::default();
         // Deduplication is necessary because we are collapsing castling states.
         for mut state in self.possible_states.drain(..) {
-            let t = requested_move.map(|m| state.requested_to_taken(m))
-                .and_then(std::convert::identity);  // flatten
+            let t = state.requested_to_taken(requested_move);
             if t == taken_move {
                 let old_state = state.clone();
                 let c = state.make_move(t);
