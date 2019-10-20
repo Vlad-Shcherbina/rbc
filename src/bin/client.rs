@@ -143,7 +143,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
         halfmove_number,
         900.0 - last_time_left, timer.elapsed().as_secs_f64());
 
-    if outcome != 'W' && !(opponent_name == "APL_Oracle" && h.win_reason.0 == "KING_CAPTURE") {
+    if outcome != 'W' {
         message.push_str("   !!!");
     }
 
@@ -300,6 +300,7 @@ fn main() {
                 }
                 let mut opponents = api::list_users().unwrap();
                 opponents.retain(|o|
+                    // o == "Oracle" &&
                     o != "DotModus_Chris" &&  // hangs
                     o != "genetic"
                 );
