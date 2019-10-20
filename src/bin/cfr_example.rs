@@ -77,8 +77,49 @@ impl Game for CoinTossGame {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Rps {
+    Rock,
+    Paper,
+    Scissors,
+}
+
+#[derive(Debug)]
+struct RpsGame;
+
+impl Game for RpsGame {
+    type Action = Rps;
+    type Infoset = u8;
+
+    fn node_info(&self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset> {
+        match h {
+            [] => NodeInfo::Choice {
+                player: 0,
+                infoset: 0,
+                actions: vec![Rps::Rock, Rps::Paper, Rps::Scissors],
+            },
+            [_] => NodeInfo::Choice {
+                player: 1,
+                infoset: 1,
+                actions: vec![Rps::Rock, Rps::Paper, Rps::Scissors],
+            },
+            [Rps::Rock,     Rps::Rock    ] => NodeInfo::Terminal( 0.0),
+            [Rps::Rock,     Rps::Paper   ] => NodeInfo::Terminal(-1.0),
+            [Rps::Rock,     Rps::Scissors] => NodeInfo::Terminal( 1.0),
+            [Rps::Paper,    Rps::Rock    ] => NodeInfo::Terminal( 1.0),
+            [Rps::Paper,    Rps::Paper   ] => NodeInfo::Terminal( 0.0),
+            [Rps::Paper,    Rps::Scissors] => NodeInfo::Terminal(-1.0),
+            [Rps::Scissors, Rps::Rock    ] => NodeInfo::Terminal(-1.0),
+            [Rps::Scissors, Rps::Paper   ] => NodeInfo::Terminal( 2.0),
+            [Rps::Scissors, Rps::Scissors] => NodeInfo::Terminal( 0.0),
+            _ => unreachable!(),
+        }
+    }
+}
+
 fn main() {
-    let enc = Encoding::new(&CoinTossGame);
+    // let enc = Encoding::new(&CoinTossGame);
+    let enc = Encoding::new(&RpsGame);
     dbg!(&enc);
     let mut cfr = Cfr::new(&enc);
     dbg!(&cfr);
