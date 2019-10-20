@@ -1,4 +1,4 @@
-use rbc::cfr::{NodeInfo, Game, Encoding};
+use rbc::cfr::{NodeInfo, Game, Encoding, Cfr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Coin {
@@ -21,9 +21,9 @@ enum CoinTossInfoset {
 }
 
 #[derive(Debug)]
-struct CoinToss;
+struct CoinTossGame;
 
-impl Game for CoinToss {
+impl Game for CoinTossGame {
     type Action = CoinTossAction;
     type Infoset = CoinTossInfoset;
 
@@ -78,6 +78,13 @@ impl Game for CoinToss {
 }
 
 fn main() {
-    let enc = Encoding::new(&CoinToss);
-    dbg!(enc);
+    let enc = Encoding::new(&CoinTossGame);
+    dbg!(&enc);
+    let mut cfr = Cfr::new(&enc);
+    dbg!(&cfr);
+    for _ in 0..1000 {
+        cfr.step(&enc);
+    }
+    dbg!(&cfr);
+    dbg!(cfr.get_strategy(&enc));
 }

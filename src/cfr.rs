@@ -111,3 +111,106 @@ impl<G: Game> Encoding<G> {
         result
     }
 }
+
+#[derive(Debug)]
+struct CfrEntry {
+    total_regret: Vec<f32>,
+    total_sigma: Vec<f32>,
+    cur_sigma: Vec<f32>,
+}
+
+impl CfrEntry {
+    fn new(num_actions: usize) -> Self {
+        CfrEntry {
+            total_regret: vec![0.0; num_actions],
+            total_sigma: vec![0.0; num_actions],
+            cur_sigma: vec![0.0; num_actions],
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Cfr {
+    entries: Vec<CfrEntry>,
+}
+
+impl Cfr {
+    pub fn new<G: Game>(enc: &Encoding<G>) -> Self {
+        Cfr {
+            entries: enc.infosets.iter().map(|i| CfrEntry::new(i.actions.len())).collect(),
+        }
+    }
+
+    pub fn step<G: Game>(&mut self, enc: &Encoding<G>) {
+        self.compute_cur_sigma();
+        self.visit(enc, enc.root, [1.0, 1.0], 1.0);
+    }
+
+    pub fn get_strategy<G: Game>(&mut self, enc: &Encoding<G>) -> HashMap<G::Infoset, Vec<(G::Action, f32)>> {
+        self.entries.iter().enumerate().map(|(i, e)| {
+            let mut sigma = e.total_sigma.clone();
+            normalize_to(&e.total_sigma, &mut sigma);
+            (enc.infosets[i].orig.clone(), enc.infosets[i].actions.iter().cloned().zip(sigma).collect())
+        }).collect()
+    }
+
+    fn compute_cur_sigma(&mut self) {
+        for e in self.entries.iter_mut() {
+            normalize_to(&e.total_regret, &mut e.cur_sigma);
+        }
+    }
+
+    fn visit<G: Game>(&mut self, enc: &Encoding<G>, node: CompactNode, pi: [f32; 2], pi_chance: f32) -> f32 {
+        match &enc.nodes[node] {
+            NodeInfo::Terminal(x) => *x,
+            NodeInfo::Chance(actions) => {
+                let mut s = 0.0;
+                for &(prob, next_node) in actions {
+                    s += prob * self.visit(enc, next_node, pi, pi_chance * prob);
+                }
+                s
+            }
+            &NodeInfo::Choice { player, infoset, ref actions } => {
+                let num_actions = actions.len();
+
+                let mut s = 0.0;
+                let mut evs = Vec::with_capacity(actions.len());
+                for i in 0..num_actions {
+                    let sigma = self.entries[infoset].cur_sigma[i];
+                    let mut pp = pi;
+                    pp[player] *= sigma;
+                    let ev = self.visit(enc, actions[i], pp, pi_chance);
+                    s += sigma * ev;
+                    evs.push(ev);
+                }
+                let entry = &mut self.entries[infoset];
+
+                let factor = pi_chance * pi[1 - player] * if player == 0 { 1.0 } else { -1.0 };
+                for i in 0..num_actions {
+                    entry.total_regret[i] += factor * (evs[i] - s);
+                }
+
+                for i in 0..num_actions {
+                    entry.total_sigma[i] += pi[player] * entry.cur_sigma[i];
+                }
+                s
+            }
+        }
+    }
+}
+
+fn normalize_to(xs: &[f32], dst: &mut [f32]) {
+    let s: f32 = xs.iter().map(|x| x.max(0.0)).sum();
+    assert_eq!(xs.len(), dst.len());
+    if s == 0.0 {
+        let q = 1.0 / dst.len() as f32;
+        for y in dst.iter_mut() {
+            *y = q;
+        }
+    } else {
+        let q = 1.0 / s;
+        for (x, y) in xs.iter().zip(dst.iter_mut()) {
+            *y = x.max(0.0) * q;
+        }
+    }
+}
