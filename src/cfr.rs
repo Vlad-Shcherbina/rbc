@@ -12,8 +12,8 @@ pub enum NodeInfo<Action, Infoset> {
 }
 
 pub trait Game: Sized {
-    type Action;
-    type Infoset;
+    type Action: Clone + Eq + std::fmt::Debug;
+    type Infoset: Clone + Eq + std::hash::Hash + std::fmt::Debug;
 
     fn node_info(&self, h: &[Self::Action]) -> NodeInfo<Self::Action, Self::Infoset>;
 }
@@ -33,11 +33,7 @@ struct CompactInfoset<OrigAction, OrigInfoset>
 }
 
 #[derive(Debug)]
-pub struct Encoding<G: Game>
-where
-    G::Infoset: Eq + std::hash::Hash,
-    G::Action: std::fmt::Debug,
-{
+pub struct Encoding<G: Game> {
     infoset_by_orig: HashMap<G::Infoset, usize>,
     infosets: Vec<CompactInfoset<G::Action, G::Infoset>>,
     nodes: Vec<NodeInfo</*Action*/CompactNode, /*Infoset*/usize>>,
@@ -45,11 +41,7 @@ where
     root: CompactNode,
 }
 
-impl<G: Game> Encoding<G>
-where
-    G::Action: Clone + Eq + std::hash::Hash + std::fmt::Debug,
-    G::Infoset: Clone + Eq + std::hash::Hash + std::fmt::Debug,
-{
+impl<G: Game> Encoding<G> {
     pub fn new(g: &G) -> Self {
         let mut enc = Encoding {
             infoset_by_orig: HashMap::new(),
