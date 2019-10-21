@@ -117,6 +117,7 @@ struct CfrEntry {
     total_regret: Vec<f32>,
     total_sigma: Vec<f32>,
     cur_sigma: Vec<f32>,
+    tmp: Vec<f32>,
 }
 
 impl CfrEntry {
@@ -125,6 +126,7 @@ impl CfrEntry {
             total_regret: vec![0.0; num_actions],
             total_sigma: vec![0.0; num_actions],
             cur_sigma: vec![0.0; num_actions],
+            tmp: vec![0.0; num_actions],
         }
     }
 }
@@ -174,20 +176,19 @@ impl Cfr {
                 let num_actions = actions.len();
 
                 let mut s = 0.0;
-                let mut evs = Vec::with_capacity(actions.len());
                 for i in 0..num_actions {
                     let sigma = self.entries[infoset].cur_sigma[i];
                     let mut pp = pi;
                     pp[player] *= sigma;
                     let ev = self.visit(enc, actions[i], pp, pi_chance);
                     s += sigma * ev;
-                    evs.push(ev);
+                    self.entries[infoset].tmp[i] = ev;
                 }
                 let entry = &mut self.entries[infoset];
 
                 let factor = pi_chance * pi[1 - player] * if player == 0 { 1.0 } else { -1.0 };
                 for i in 0..num_actions {
-                    entry.total_regret[i] += factor * (evs[i] - s);
+                    entry.total_regret[i] += factor * (entry.tmp[i] - s);
                 }
 
                 for i in 0..num_actions {

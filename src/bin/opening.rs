@@ -6,7 +6,7 @@ use rbc::rbc_xf::{State, RbcGame};
 fn main() {
     let mut ctx = rbc::eval::Ctx::new(BoardState::initial());
     ctx.expensive_eval = true;
-    let mut rbc_game = RbcGame::new(1 + 2, 3, &mut ctx, State::ChoosePositionBeforeSense(Color::Black), vec![
+    let mut rbc_game = RbcGame::new(1 + 4, 3, &mut ctx, State::ChoosePositionBeforeSense(Color::Black), vec![
         BoardState::initial(),
         fen::BoardState::from_fen("rnbqkb1r/pppppppp/8/8/8/5n2/PPPPPPPP/RNBQKBNR w KQkq - 0 0").unwrap().into(),
     ]);
@@ -24,7 +24,8 @@ fn main() {
     // return;
     let mut cfr = Cfr::new(&enc);
     // dbg!(&cfr);
-    for step in 0..1000_000 {
+    let timer = std::time::Instant::now();
+    for step in 0..30_000 {
         cfr.step(&enc);
         if (step + 1) % 10_000 == 0 {
             let mut strat: Vec<_> = cfr.get_strategy(&enc).into_iter().collect();
@@ -46,6 +47,7 @@ fn main() {
             println!("----------------");
         }
     }
+    println!("it took {:.3}s", timer.elapsed().as_secs_f64());
     // dbg!(cfr.get_strategy(&enc));
 
     // let mut openins = openin
