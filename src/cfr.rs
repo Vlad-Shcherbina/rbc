@@ -163,6 +163,9 @@ impl Cfr {
     }
 
     fn visit<G: Game>(&mut self, enc: &Encoding<G>, node: CompactNode, pi: [f32; 2], pi_chance: f32) -> f32 {
+        if pi[0] < 1e-7 && pi[1] < 1e-7 {
+            return 0.0;
+        }
         match &enc.nodes[node] {
             NodeInfo::Terminal(x) => *x,
             NodeInfo::Chance(actions) => {
