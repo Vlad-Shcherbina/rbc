@@ -30,13 +30,13 @@ fn main() {
         if (step + 1) % 10_000 == 0 {
             let mut strat: Vec<_> = cfr.get_strategy(&enc).into_iter().collect();
             strat.sort_by_key(|(infoset, _)| (infoset.len(), format!("{:?}", infoset)));
-            for (infoset, mut actions) in strat {
+            for (infoset, mut ss) in strat {
                 if infoset.len() >= 3 {
                     break;
                 }
                 println!("{:?}", infoset);
-                actions.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
-                for (a, p) in actions {
+                ss.actions.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
+                for (a, p) in ss.actions {
                     if p < 1e-3 {
                         println!("   ...");
                         break;

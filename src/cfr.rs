@@ -118,6 +118,8 @@ struct CfrEntry {
     total_sigma: Vec<f32>,
     cur_sigma: Vec<f32>,
     tmp: Vec<f32>,
+    total_value: f32,
+    total_visit_prob: f32,
 }
 
 impl CfrEntry {
@@ -127,6 +129,8 @@ impl CfrEntry {
             total_sigma: vec![0.0; num_actions],
             cur_sigma: vec![0.0; num_actions],
             tmp: vec![0.0; num_actions],
+            total_value: 42.0,
+            total_visit_prob: 42.0,
         }
     }
 }
@@ -134,6 +138,13 @@ impl CfrEntry {
 #[derive(Debug)]
 pub struct Cfr {
     entries: Vec<CfrEntry>,
+}
+
+#[derive(Debug)]
+pub struct InfosetStrategy<Action> {
+    pub actions: Vec<(Action, f32)>,
+    pub expected_value: f32,
+    pub visit_prob: f32,
 }
 
 impl Cfr {
@@ -148,12 +159,48 @@ impl Cfr {
         self.visit(enc, enc.root, [1.0, 1.0], 1.0);
     }
 
-    pub fn get_strategy<G: Game>(&mut self, enc: &Encoding<G>) -> HashMap<G::Infoset, Vec<(G::Action, f32)>> {
+    pub fn get_strategy<G: Game>(&mut self, enc: &Encoding<G>) -> HashMap<G::Infoset, InfosetStrategy<G::Action>> {
+        for e in &mut self.entries {
+            e.total_value = 0.0;
+            e.total_visit_prob = 0.0;
+            normalize_to(&e.total_sigma, &mut e.tmp);
+        }
+        self.visit2(enc, enc.root, [1.0, 1.0], 1.0);
         self.entries.iter().enumerate().map(|(i, e)| {
-            let mut sigma = e.total_sigma.clone();
-            normalize_to(&e.total_sigma, &mut sigma);
-            (enc.infosets[i].orig.clone(), enc.infosets[i].actions.iter().cloned().zip(sigma).collect())
+            let k = enc.infosets[i].orig.clone();
+            let v = InfosetStrategy {
+                actions: enc.infosets[i].actions.iter().cloned().zip(e.tmp.iter().cloned()).collect(),
+                expected_value: e.total_value / e.total_visit_prob.max(1e-9),
+                visit_prob: e.total_visit_prob,
+            };
+            (k, v)
         }).collect()
+    }
+
+    fn visit2<G: Game>(&mut self, enc: &Encoding<G>, node: CompactNode, pi: [f32; 2], pi_chance: f32) -> f32 {
+        match &enc.nodes[node] {
+            NodeInfo::Terminal(x) => *x,
+            NodeInfo::Chance(actions) => {
+                let mut s = 0.0;
+                for &(prob, next_node) in actions {
+                    s += prob * self.visit2(enc, next_node, pi, pi_chance * prob);
+                }
+                s
+            }
+            &NodeInfo::Choice { player, infoset, ref actions } => {
+                let mut s = 0.0;
+                for i in 0..actions.len() {
+                    let mut pp = pi;
+                    pp[player] *= self.entries[infoset].tmp[i];
+                    let ev = self.visit2(enc, actions[i], pp, pi_chance);
+                    s += ev * self.entries[infoset].tmp[i];
+                }
+                let t = pi[0] * pi[1] * pi_chance;
+                self.entries[infoset].total_visit_prob += t;
+                self.entries[infoset].total_value += s * t;
+                s
+            }
+        }
     }
 
     fn compute_cur_sigma(&mut self) {

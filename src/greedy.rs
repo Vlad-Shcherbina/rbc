@@ -32,6 +32,8 @@ impl Ai for GreedyAi {
     }
 }
 
+type SenseResult = (Square, Vec<(Square, Option<Piece>)>);
+
 struct GreedyPlayer {
     rng: StdRng,
     color: Color,
@@ -40,8 +42,8 @@ struct GreedyPlayer {
     move_number: i32,
     last_capture: Option<Piece>,
     ctx: crate::eval::Ctx,
-    last_sense_result: Option<(Square, Vec<(Square, Option<Piece>)>)>,
-    strategy: Option<HashMap<(Square, Vec<(Square, Option<Piece>)>), Vec<(Option<Move>, f32)>>>,
+    last_sense_result: Option<SenseResult>,
+    strategy: Option<HashMap<SenseResult, (f32, f32, Vec<(Option<Move>, f32)>)>>,
 }
 
 fn sparsen<T>(max_size: usize, rng: &mut StdRng, it: impl ExactSizeIterator<Item=T>) -> Vec<T> {
@@ -101,12 +103,12 @@ impl Player for GreedyPlayer {
         if sense_entries.len() == 1 {
             writeln!(html, "<p>only one sense option</p>").unwrap();
             let sq: Square = *sense_entries.keys().next().unwrap();
-            append_to_summary!(html, "<td class=numcol>---</td>");
+            append_to_summary!(html, "<td class=numcol>---</td><td></td>");
             return vec![(sq, 1.0)];
         }
         if self.move_number == 1 {
             writeln!(html, "<p>opening</p>").unwrap();
-            append_to_summary!(html, "<td class=numcol>open</td>");
+            append_to_summary!(html, "<td class=numcol>open</td><td></td>");
             return vec![
                 (Square::from_san("d2"), 2.0),
                 (Square::from_san("e2"), 2.0),
@@ -142,8 +144,8 @@ impl Player for GreedyPlayer {
                 }
                 search_depth += 1;
             };
-            let d = &strategy[&vec![crate::rbc_xf::Inflet::MyColor(self.color)]];
-            let mut d: Vec<(Square, f32)> = d.iter().map(|(a, prob)| {
+            let infoset_strat = &strategy[&vec![crate::rbc_xf::Inflet::MyColor(self.color)]];
+            let mut d: Vec<(Square, f32)> = infoset_strat.actions.iter().map(|(a, prob)| {
                 match a {
                     crate::rbc_xf::Action::Sense(sq) => (*sq, *prob),
                     _ => unreachable!("{:?}", a),
@@ -151,21 +153,32 @@ impl Player for GreedyPlayer {
             }).collect();
             d.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
             d.retain(|&(_, p)| p > 0.03);
-            self.strategy = Some(strategy.iter().filter_map(|(obs, resp)| {
+            self.strategy = Some(strategy.iter().filter_map(|(obs, strat)| {
                 match &obs[..] {
                     [crate::rbc_xf::Inflet::MyColor(c), crate::rbc_xf::Inflet::Sense(sq, sr)] if *c == self.color => {
-                        let mut resp: Vec<(Option<Move>, f32)> = resp.iter().map(|(a, prob)| match a {
+                        let mut resp: Vec<(Option<Move>, f32)> = strat.actions.iter().map(|(a, prob)| match a {
                             crate::rbc_xf::Action::Move(m) => (*m, *prob),
                             _ => unreachable!("{:?}", a),
                         }).filter(|&(_, prob)| prob >= 0.01).collect();
                         resp.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
-                        Some(((*sq, sr.clone()), resp))
+                        let ev = match self.color {
+                            Color::White => strat.expected_value,
+                            Color::Black => -strat.expected_value,
+                        };
+                        Some(((*sq, sr.clone()), (ev, strat.visit_prob, resp)))
                     }
                     _ => None
                 }
             }).collect());
             writeln!(html, "<p>CFR strat: {:?}</p>", d).unwrap();
-            append_to_summary!(html, "<td class=numcol>*{:.1}s</td>", timer.elapsed().as_secs_f64());
+            let ev = match self.color {
+                Color::White => infoset_strat.expected_value,
+                Color::Black => -infoset_strat.expected_value,
+            };
+            append_to_summary!(html,
+                "<td class=numcol>{:.1}s</td><td class=numcol>{:.1}</td>",
+                timer.elapsed().as_secs_f64(),
+                ev);
             return d;
         }
 
@@ -243,7 +256,7 @@ impl Player for GreedyPlayer {
         }
 
         write!(self.summary, " {:>5.1}s", timer.elapsed().as_secs_f64()).unwrap();
-        append_to_summary!(html, "<td class=numcol>{:.1}s</td>", timer.elapsed().as_secs_f64());
+        append_to_summary!(html, "<td class=numcol>{:.1}s</td><td></td>", timer.elapsed().as_secs_f64());
         html.flush().unwrap();
         let m: f64 = hz.iter()
             .map(|&(_, e)| e)
@@ -290,14 +303,14 @@ impl Player for GreedyPlayer {
 
         if infoset.possible_states.len() > 1 {
             if let Some(strategy) = self.strategy.take() {
-                let d = strategy[&self.last_sense_result.take().unwrap()].clone();
-                writeln!(html, "<p>Using stored strategy</p>").unwrap();
+                let (ev, prob, d) = strategy[&self.last_sense_result.take().unwrap()].clone();
+                writeln!(html, "<p>Using stored strategy (visit prob {})</p>", prob).unwrap();
                 writeln!(html, "<table>").unwrap();
                 for (m, p) in &d {
                     writeln!(html, "<tr><td>{:?}</td><td>{}</td>", m, p).unwrap();
                 }
                 writeln!(html, "</table>").unwrap();
-                append_to_summary!(html, "<td class=numcol>stored</td><td></td>");
+                append_to_summary!(html, "<td class=numcol>stored</td><td class=numcol>{:.1}</td>", ev);
                 return d;
             }
         }
