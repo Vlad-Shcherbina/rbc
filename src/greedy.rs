@@ -85,7 +85,7 @@ impl Player for GreedyPlayer {
         info!("choose_sense (move {})", self.move_number);
         writeln!(html, r#"<h3 id="sense{}">Move {}</h3>"#, self.move_number, self.move_number).unwrap();
         writeln!(html, "<h4>Sense</h4>").unwrap();
-        let urgency = (remaining_time / 350.0).min(1.0).max(0.2);
+        let urgency = (remaining_time / 450.0).min(1.0).max(0.05);
         writeln!(html, "<p>urgency = {}</p>", urgency).unwrap();
 
         assert_eq!(self.color, infoset.fog_state.side_to_play());
@@ -297,7 +297,7 @@ impl Player for GreedyPlayer {
         let timer = std::time::Instant::now();
         info!("choose_move (move {})", self.move_number);
         writeln!(html, r#"<h4 id="move{}">Move</h3>"#, self.move_number).unwrap();
-        let urgency = (remaining_time / 350.0).min(1.0).max(0.2);
+        let urgency = (remaining_time / 450.0).min(1.0).max(0.05);
         writeln!(html, "<p>urgency = {}</p>", urgency).unwrap();
 
         append_to_summary!(html, "<td class=numcol><i>{:.0}s</i></td>", remaining_time);
@@ -316,7 +316,7 @@ impl Player for GreedyPlayer {
             ];
         }
 
-        if infoset.possible_states.len() > 1 {
+        if infoset.possible_states.len() > 1 && self.rng.gen_bool(0.95) {
             if let Some(strategy) = self.strategy.take() {
                 let (ev, prob, d) = strategy[&self.last_sense_result.take().unwrap()].clone();
                 writeln!(html, "<p>Using stored strategy (visit prob {})</p>", prob).unwrap();
@@ -368,7 +368,7 @@ impl Player for GreedyPlayer {
                 }
             }).collect();
             d.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
-            d.retain(|&(_, p)| p > 0.03);
+            d.retain(|&(_, p)| p > 0.001);
 
             writeln!(html, "<table>").unwrap();
             for (m, p) in &d {

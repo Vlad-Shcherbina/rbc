@@ -124,7 +124,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             halfmove_number += 2;
         }
 
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        std::thread::sleep(std::time::Duration::from_secs_f64(0.25));
     }
 
     let h = api::game_history_raw(game_id).expect("TODO");
