@@ -14,12 +14,12 @@ pub trait Player {
         capture: Option<(Square, Piece)>,
         infoset: &Infoset,
         html: &mut dyn Write);
-    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)>;
+    fn choose_sense(&mut self, remaining_time: f64, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)>;
     fn handle_sense(&mut self,
         sense: Square, sense_result: &[(Square, Option<Piece>)],
         infoset: &Infoset,
         html: &mut dyn Write);
-    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)>;
+    fn choose_move(&mut self, remaining_time: f64, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)>;
     fn handle_move(&mut self,
         requested: Option<Move>, taken: Option<Move>, capture: Option<(Square, Vec<Piece>)>,
         infoset: &Infoset,
@@ -66,7 +66,7 @@ impl Player for RandomPlayer {
         self.state.make_move_under_fog(capture.map(|c| c.0));
     }
 
-    fn choose_sense(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Square, f32)> {
+    fn choose_sense(&mut self, _remaining_time: f64, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Square, f32)> {
         assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));
@@ -90,7 +90,7 @@ impl Player for RandomPlayer {
         info!("after sense: {:#?}", self.state.render());
     }
 
-    fn choose_move(&mut self, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
+    fn choose_move(&mut self, _remaining_time: f64, _infoset: &Infoset, _html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
         assert_eq!(self.color, self.state.side_to_play());
         std::thread::sleep(std::time::Duration::from_secs(
             self.rng.gen_range(0, self.delay + 1)));

@@ -44,7 +44,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
         if gs.is_my_turn {
             writeln!(html, "<hr>").unwrap();
             match api::seconds_left(game_id) {
-                Ok(t) => last_time_left = t,
+                Ok(t) => last_time_left = t as f64,
                 Err(api::Error::HttpError(400)) => {
                     let gs = api::game_status(game_id).expect("TODO");
                     assert!(gs.is_over);
@@ -52,6 +52,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
                 }
                 Err(e) => panic!("{:?}", e),
             }
+            let move_timer = std::time::Instant::now();
             let capture_square = match api::opponent_move_results(game_id) {
                 Ok(cs) => cs,
                 Err(api::Error::HttpError(400)) => {
@@ -69,7 +70,7 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
                 assert!(capture_square.is_none());
             }
 
-            let sense_distr = player.choose_sense(&infoset, &mut html);
+            let sense_distr = player.choose_sense(last_time_left, &infoset, &mut html);
             let sense = *distr::draw(&sense_distr, &mut rng);
             writeln!(html, "<p>sense: {:?}</p>", sense_distr).unwrap();
             writeln!(html, "<p>sense: {:?}</p>", sense).unwrap();
@@ -85,7 +86,9 @@ pub fn play_game(color: Color, game_id: i32, ai: &dyn Ai) -> (char, String) {
             infoset.sense(sense, &sense_result);
             player.handle_sense(sense, &sense_result, &infoset, &mut html);
 
-            let requested_distr = player.choose_move(&infoset, &mut html);
+            let requested_distr = player.choose_move(
+                last_time_left - move_timer.elapsed().as_secs_f64(),
+                &infoset, &mut html);
             let requested = distr::draw(&requested_distr, &mut rng);
             writeln!(html, "<p>requested: {:?}</p>", requested_distr).unwrap();
 

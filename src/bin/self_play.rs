@@ -15,6 +15,7 @@ struct GameState {
     player_black: Box<dyn Player>,
     move_number: i32,
     last_capture: Option<(Square, Piece)>,
+    timer: std::time::Instant,
 }
 
 impl GameState {
@@ -27,6 +28,7 @@ impl GameState {
             player_black: ai_black.make_player(Color::Black, seed + 2),
             move_number: 0,
             last_capture: None,
+            timer: std::time::Instant::now(),
         }
     }
 
@@ -43,7 +45,7 @@ impl GameState {
             infoset.opponent_move(self.last_capture.map(|c| c.0));
             player.handle_opponent_move(self.last_capture, infoset, html);
         }
-        player.choose_sense(infoset, html)
+        player.choose_sense(900.0 - self.timer.elapsed().as_secs_f64(), infoset, html)
     }
 
     fn phase2(&mut self, sense: Square, html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
@@ -54,7 +56,7 @@ impl GameState {
         let sense_result = self.board.sense(sense);
         infoset.sense(sense, &sense_result);
         player.handle_sense(sense, &sense_result, infoset, html);
-        player.choose_move(infoset, html)
+        player.choose_move(900.0 - self.timer.elapsed().as_secs_f64(), infoset, html)
     }
 
     fn phase3(&mut self, requested_move: Option<Move>, html: &mut dyn Write) {

@@ -81,16 +81,21 @@ impl Player for GreedyPlayer {
         }
     }
 
-    fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)> {
+    fn choose_sense(&mut self, remaining_time: f64, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)> {
         info!("choose_sense (move {})", self.move_number);
         writeln!(html, r#"<h3 id="sense{}">Move {}</h3>"#, self.move_number, self.move_number).unwrap();
         writeln!(html, "<h4>Sense</h4>").unwrap();
+        let urgency = (remaining_time / 350.0).min(1.0).max(0.2);
+        writeln!(html, "<p>urgency = {}</p>", urgency).unwrap();
+
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
         append_to_summary!(html, r##"<tr>
+            <td class=numcol><i>{:.0}s</i></td>
             <td>{}</td>
             <td class=numcol><a href="#sense{}">#{}</a> <a href="#move{}">m</a></td>
             <td class=numcol>{}</td>"##,
+            remaining_time,
             self.last_capture.map_or(' ', Piece::to_emoji),
             self.move_number, self.move_number, self.move_number,
             infoset.possible_states.len());
@@ -119,7 +124,7 @@ impl Player for GreedyPlayer {
         }
 
         self.strategy = None;
-        if possible_states.len() < 300 {
+        if (possible_states.len() as f64) < 300.0 * urgency {
             // TODO: dedup (anchor: vpMLtnvncYMi)
             let cfr_timer = std::time::Instant::now();
             let mut search_depth = 0;
@@ -135,12 +140,12 @@ impl Player for GreedyPlayer {
                 }
                 html.flush().unwrap();
 
-                if timer.elapsed().as_secs_f64() >= 1.0 || search_depth > 9 {
+                if timer.elapsed().as_secs_f64() >= 1.0 * urgency || search_depth > 9 {
                     let sol_timer = std::time::Instant::now();
                     let mut cfr = crate::cfr::Cfr::new(&enc);
                     for step in 0..1_000_000 {
                         cfr.step(&enc);
-                        if sol_timer.elapsed().as_secs_f64() > 4.0 {
+                        if sol_timer.elapsed().as_secs_f64() > 0.5 + 3.5 * urgency {
                             writeln!(html, "CFR made {} iterations", step).unwrap();
                             break;
                         }
@@ -205,7 +210,7 @@ impl Player for GreedyPlayer {
             }
             writeln!(html, "<p>score by_taken (depth {}) took {:>5.1}s</p>", depth, timer.elapsed().as_secs_f64()).unwrap();
             html.flush().unwrap();
-            if timer.elapsed().as_secs_f64() >= 1.0 {
+            if timer.elapsed().as_secs_f64() >= 1.0 * urgency {
                 break;
             }
         }
@@ -287,11 +292,15 @@ impl Player for GreedyPlayer {
         html.flush().unwrap();
     }
 
-    fn choose_move(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
+    fn choose_move(&mut self, remaining_time: f64, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Option<Move>, f32)> {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
         info!("choose_move (move {})", self.move_number);
         writeln!(html, r#"<h4 id="move{}">Move</h3>"#, self.move_number).unwrap();
+        let urgency = (remaining_time / 350.0).min(1.0).max(0.2);
+        writeln!(html, "<p>urgency = {}</p>", urgency).unwrap();
+
+        append_to_summary!(html, "<td class=numcol><i>{:.0}s</i></td>", remaining_time);
 
         if self.move_number == 0 {
             writeln!(html, "<p>opening</p>").unwrap();
@@ -321,7 +330,7 @@ impl Player for GreedyPlayer {
             }
         }
 
-        if infoset.possible_states.len() < 10 {
+        if (infoset.possible_states.len() as f64) < 10.0 * urgency {
             // TODO: dedup (anchor: vpMLtnvncYMi)
             let cfr_timer = std::time::Instant::now();
             let mut search_depth = 0;
@@ -337,12 +346,12 @@ impl Player for GreedyPlayer {
                 }
                 html.flush().unwrap();
 
-                if timer.elapsed().as_secs_f64() >= 1.0 || search_depth > 9 {
+                if timer.elapsed().as_secs_f64() >= 1.0 * urgency || search_depth > 9 {
                     let sol_timer = std::time::Instant::now();
                     let mut cfr = crate::cfr::Cfr::new(&enc);
                     for step in 0..1_000_000 {
                         cfr.step(&enc);
-                        if sol_timer.elapsed().as_secs_f64() > 4.0 {
+                        if sol_timer.elapsed().as_secs_f64() > 0.5 + 3.5 * urgency {
                             writeln!(html, "CFR made {} iterations", step).unwrap();
                             break;
                         }
@@ -418,7 +427,7 @@ impl Player for GreedyPlayer {
             }
             writeln!(html, "<p>score by_taken (depth {}) took {:>5.1}s</p>", depth, timer.elapsed().as_secs_f64()).unwrap();
             html.flush().unwrap();
-            if timer.elapsed().as_secs_f64() >= 1.0 {
+            if timer.elapsed().as_secs_f64() >= 1.0 * urgency {
                 break;
             }
         }
