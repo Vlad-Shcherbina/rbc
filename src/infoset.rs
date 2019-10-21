@@ -155,6 +155,7 @@ impl Infoset {
 
     pub fn sensible_moves(&self, states: &[BoardState]) -> Vec<Option<Move>> {
         let mut moves = self.fog_state.all_sensible_requested_moves();
+        moves.reverse();  // to ensure that pass move is represented as None, not as Some(a2b3)
         let mut outcomes: fnv::FnvHashSet<Vec<(BoardState, Option<Move>, Option<Square>)>> = Default::default();
         outcomes.reserve(moves.len());
         moves.retain(|&requested| {

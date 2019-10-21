@@ -6,9 +6,10 @@ use rbc::rbc_xf::{State, RbcGame};
 fn main() {
     let mut ctx = rbc::eval::Ctx::new(BoardState::initial());
     ctx.expensive_eval = true;
-    let mut rbc_game = RbcGame::new(1 + 4, 3, &mut ctx, State::ChoosePositionBeforeSense(Color::Black), vec![
+    let mut rbc_game = RbcGame::new(1 + 4, 3, &mut ctx, State::ChoosePositionBeforeMove(Color::Black), vec![
         BoardState::initial(),
         fen::BoardState::from_fen("rnbqkb1r/pppppppp/8/8/8/5n2/PPPPPPPP/RNBQKBNR w KQkq - 0 0").unwrap().into(),
+        fen::BoardState::from_fen("rnbqkb1r/pppppppp/8/8/8/3n4/PPPPPPPP/RNBQKBNR w KQkq - 0 0").unwrap().into(),
     ]);
     let timer = std::time::Instant::now();
     let enc = Encoding::new(&mut rbc_game);
@@ -35,13 +36,14 @@ fn main() {
                     break;
                 }
                 println!("{:?}", infoset);
+                println!("    // ev={}, visit_prob={}", ss.expected_value, ss.visit_prob);
                 ss.actions.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
                 for (a, p) in ss.actions {
                     if p < 1e-3 {
                         println!("   ...");
                         break;
                     }
-                    println!("   {:>5.3} {:?}", p, a);
+                    println!("    {:>5.3} {:?}", p, a);
                 }
             }
             println!("----------------");

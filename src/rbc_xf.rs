@@ -60,6 +60,7 @@ impl<'a> std::fmt::Debug for RbcGame<'a> {
 #[derive(Debug, Clone)]
 pub enum State {
     ChoosePositionBeforeSense(Color),
+    ChoosePositionBeforeMove(Color),
     ChooseSense(Color),
     ChooseMove(Color),
 }
@@ -103,7 +104,8 @@ impl<'a> Game for RbcGame<'a> {
                         _ => unreachable!("{:?}", a),
                     }
                 }
-                State::ChoosePositionBeforeSense(color) => {
+                State::ChoosePositionBeforeSense(color) |
+                State::ChoosePositionBeforeMove(color) => {
                     match a {
                         &Action::ChoosePosition(idx) => {
                             board = self.init_boards[idx].clone();
@@ -118,7 +120,11 @@ impl<'a> Game for RbcGame<'a> {
                             opp_inf.fog_state.fog_of_war(color.opposite());
                             opp_inf.possible_states = self.init_boards.clone();
 
-                            state = State::ChooseSense(color.opposite());
+                            state = match state {
+                                State::ChoosePositionBeforeSense(_) => State::ChooseSense(color.opposite()),
+                                State::ChoosePositionBeforeMove(_) => State::ChooseMove(color.opposite()),
+                                _ => unreachable!(),
+                            };
                         }
                         _ => unreachable!("{:?}", a),
                     }
@@ -144,7 +150,8 @@ impl<'a> Game for RbcGame<'a> {
                         actions: req_moves.into_iter().map(Action::Move).collect(),
                     }
                 }
-                State::ChoosePositionBeforeSense(color) => {
+                State::ChoosePositionBeforeSense(color) |
+                State::ChoosePositionBeforeMove(color) => {
                     let mut fog_state = self.init_boards[0].clone();
                     fog_state.fog_of_war(color.opposite());
                     for s in &self.init_boards {
@@ -173,7 +180,7 @@ impl<'a> Game for RbcGame<'a> {
         });
         let score = *e * (1 - 2 * (board.side_to_play() as i32));
 
-        let score = score as f32 + 7.0 * (
+        let score = score as f32 + 5.0 * (
             -(infoset[0].possible_states.len() as f32).log2()
             +(infoset[1].possible_states.len() as f32).log2());
 

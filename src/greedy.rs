@@ -83,15 +83,16 @@ impl Player for GreedyPlayer {
 
     fn choose_sense(&mut self, infoset: &Infoset, html: &mut dyn Write) -> Vec<(Square, f32)> {
         info!("choose_sense (move {})", self.move_number);
-        writeln!(html, r#"<h3 id="move{}">Move {}</h3>"#, self.move_number, self.move_number).unwrap();
+        writeln!(html, r#"<h3 id="sense{}">Move {}</h3>"#, self.move_number, self.move_number).unwrap();
+        writeln!(html, "<h4>Sense</h4>").unwrap();
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         write!(self.summary, "{:>6}", infoset.possible_states.len()).unwrap();
         append_to_summary!(html, r##"<tr>
             <td>{}</td>
-            <td class=numcol><a href="#move{}">#{}</a></td>
+            <td class=numcol><a href="#sense{}">#{}</a> <a href="#move{}">m</a></td>
             <td class=numcol>{}</td>"##,
             self.last_capture.map_or(' ', Piece::to_emoji),
-            self.move_number, self.move_number,
+            self.move_number, self.move_number, self.move_number,
             infoset.possible_states.len());
 
         write!(html, "<p>{}</p>", infoset.to_html()).unwrap();
@@ -119,6 +120,7 @@ impl Player for GreedyPlayer {
 
         self.strategy = None;
         if possible_states.len() < 300 {
+            // TODO: dedup (anchor: vpMLtnvncYMi)
             let cfr_timer = std::time::Instant::now();
             let mut search_depth = 0;
             let strategy = loop {
@@ -128,6 +130,9 @@ impl Player for GreedyPlayer {
                     possible_states.clone());
                 let enc = crate::cfr::Encoding::new(&mut game);
                 writeln!(html, "<p>Building game tree (search depth {}) took {:.3}s</p>", search_depth, cfr_timer.elapsed().as_secs_f64()).unwrap();
+                if search_depth == 0 {
+                    writeln!(html, "<p>{} nodes, {} infosets</p>", enc.nodes.len(), enc.infosets.len()).unwrap();
+                }
                 html.flush().unwrap();
 
                 if timer.elapsed().as_secs_f64() >= 1.0 || search_depth > 9 {
@@ -176,7 +181,7 @@ impl Player for GreedyPlayer {
                 Color::Black => -infoset_strat.expected_value,
             };
             append_to_summary!(html,
-                "<td class=numcol>{:.1}s</td><td class=numcol>{:.1}</td>",
+                "<td class=numcol>*{:.1}s</td><td class=numcol>{:.1}</td>",
                 timer.elapsed().as_secs_f64(),
                 ev);
             return d;
@@ -286,6 +291,7 @@ impl Player for GreedyPlayer {
         assert_eq!(self.color, infoset.fog_state.side_to_play());
         let timer = std::time::Instant::now();
         info!("choose_move (move {})", self.move_number);
+        writeln!(html, r#"<h4 id="move{}">Move</h3>"#, self.move_number).unwrap();
 
         if self.move_number == 0 {
             writeln!(html, "<p>opening</p>").unwrap();
@@ -313,6 +319,62 @@ impl Player for GreedyPlayer {
                 append_to_summary!(html, "<td class=numcol>stored</td><td class=numcol>{:.1}</td>", ev);
                 return d;
             }
+        }
+
+        if infoset.possible_states.len() < 10 {
+            // TODO: dedup (anchor: vpMLtnvncYMi)
+            let cfr_timer = std::time::Instant::now();
+            let mut search_depth = 0;
+            let strategy = loop {
+                let mut game = crate::rbc_xf::RbcGame::new(
+                    1 + 3, search_depth, &mut self.ctx,
+                    crate::rbc_xf::State::ChoosePositionBeforeMove(self.color.opposite()),
+                    infoset.possible_states.clone());
+                let enc = crate::cfr::Encoding::new(&mut game);
+                writeln!(html, "<p>Building game tree (search depth {}) took {:.3}s</p>", search_depth, cfr_timer.elapsed().as_secs_f64()).unwrap();
+                if search_depth == 0 {
+                    writeln!(html, "<p>{} nodes, {} infosets</p>", enc.nodes.len(), enc.infosets.len()).unwrap();
+                }
+                html.flush().unwrap();
+
+                if timer.elapsed().as_secs_f64() >= 1.0 || search_depth > 9 {
+                    let sol_timer = std::time::Instant::now();
+                    let mut cfr = crate::cfr::Cfr::new(&enc);
+                    for step in 0..1_000_000 {
+                        cfr.step(&enc);
+                        if sol_timer.elapsed().as_secs_f64() > 4.0 {
+                            writeln!(html, "CFR made {} iterations", step).unwrap();
+                            break;
+                        }
+                    }
+                    break cfr.get_strategy(&enc);
+                }
+                search_depth += 1;
+            };
+            let infoset_strat = &strategy[&vec![crate::rbc_xf::Inflet::MyColor(self.color)]];
+            let mut d: Vec<(Option<Move>, f32)> = infoset_strat.actions.iter().map(|(a, prob)| {
+                match a {
+                    crate::rbc_xf::Action::Move(m) => (*m, *prob),
+                    _ => unreachable!("{:?}", a),
+                }
+            }).collect();
+            d.sort_by(|(_, p1), (_, p2)| p2.partial_cmp(p1).unwrap());
+            d.retain(|&(_, p)| p > 0.03);
+
+            writeln!(html, "<table>").unwrap();
+            for (m, p) in &d {
+                writeln!(html, "<tr><td>{:?}</td><td>{}</td>", m, p).unwrap();
+            }
+            writeln!(html, "</table>").unwrap();
+
+            let ev = match self.color {
+                Color::White => infoset_strat.expected_value,
+                Color::Black => -infoset_strat.expected_value,
+            };
+            append_to_summary!(html, "<td class=numcol>*{:.1}s</td><td class=numcol>{:.1}</td>",
+                timer.elapsed().as_secs_f64(),
+                ev);
+            return d;
         }
 
         let mut candidates = infoset.fog_state.all_sensible_requested_moves();
