@@ -1,0 +1,85 @@
+td.numcol {
+    text-align: right;
+}
+
+table.board, table.board-large {
+    border-spacing: 0px;
+    table-layout: fixed;
+}
+
+table.board td {
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    vertical-align: middle;
+    padding: 0px;
+    font-size: 14px;
+}
+
+table.board td div.piece {
+    margin-top: -7px;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+}
+
+table.board-large td {
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    vertical-align: middle;
+    padding: 0px;
+}
+
+table.board-large td div.piece {
+    line-height: 0.8em;
+    width: 30px;
+    font-size: 10px;
+    word-wrap: break-word;
+}
+
+table.board-large td div.piece.cnt1 {
+    font-size: 25px;
+}
+
+table.board-large td div.piece.cnt2 {
+    font-size: 20px;
+}
+
+table.board-large td div.piece.cnt3 {
+    font-size: 15px;
+}
+
+table.board-large td div.piece.cnt4 {
+    font-size: 15px;
+}
+
+.bc {
+    background-color: #ddd;
+}
+
+.coord {
+    color: #77F;
+}
+
+tr:hover {
+    background-color: #f5f5f5;
+}
+
+.negspace {
+    margin-left: -1px;
+    margin-right: -1px;
+}
+
+#summary {
+    max-height: 75%;
+    overflow-y: scroll;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(230, 230, 255, 0.85)
+}
+
+#summary a:link, #summary a:visited {
+    color: blue;
+}
